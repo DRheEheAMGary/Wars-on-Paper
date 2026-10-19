@@ -861,6 +861,10 @@ function handleEvents(events) {
       showToast(
         `${name} 战斗：损失 ${event.attackerLoss}，歼敌 ${event.defenderLoss}`,
       );
+    } else if (event.type === 'wave') {
+      showToast(`第 ${event.wave} 波叛军从外围据点来袭`);
+    } else if (event.type === 'rebelCapture') {
+      showToast(`叛军攻占 ${map.cities[event.cityId]?.name ?? '一座城市'}`);
     } else if (event.type === 'worldEvent') {
       showToast(`【${event.name}】${event.description}`);
     } else if (event.type === 'coalition') {
