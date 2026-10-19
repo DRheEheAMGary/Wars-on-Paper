@@ -166,7 +166,6 @@ function checkEnd(state, balance) {
         state.result = {
           outcome: 'ended',
           winner: null,
-          wave: state.wave ?? 0,
           ranking: ranking(state),
         };
       } else if (!solo && alive.length === 1) {
@@ -174,7 +173,6 @@ function checkEnd(state, balance) {
         state.result = {
           outcome: 'victory',
           winner: alive[0].id,
-          wave: state.wave ?? 0,
           ranking: ranking(state),
         };
       }
@@ -227,7 +225,7 @@ function checkEnd(state, balance) {
       state.result = {
         outcome: 'lost',
         mode: 'endless',
-        wave: state.wave ?? 0,
+        elapsed: Math.round((state.tick * balance.tickMs) / 1000),
         score: human.score,
         cities: 0,
         kills: human.kills,
@@ -240,7 +238,7 @@ function checkEnd(state, balance) {
       state.result = {
         outcome: 'won',
         mode: 'endless',
-        wave: state.wave ?? 0,
+        elapsed: Math.round((state.tick * balance.tickMs) / 1000),
         score: human.score,
         cities: human.cityCount,
         kills: human.kills,
@@ -590,84 +588,6 @@ function aiAct(state, balance, player) {
 }
 
 /**
- * Spawn an escalating wave of rebel armies that attacks any owned city.
- * @param {any} state
- * @param {any} balance
- */
-function spawnWave(state, balance) {
-  const config = balance.endless;
-  if (!config) return;
-  state.wave = (state.wave ?? 0) + 1;
-  const interval = Math.max(
-    config.minWaveIntervalSeconds,
-    config.waveIntervalSeconds - (state.wave - 1) * config.intervalDecaySeconds,
-  );
-  state.nextWaveTick = state.tick + Math.round((interval * 1000) / balance.tickMs);
-
-  const owned = state.cities.filter((/** @type {any} */ city) => city.owner !== null);
-  if (owned.length === 0) return;
-  const neutral = state.cities.filter((/** @type {any} */ city) => city.owner === null);
-  if (neutral.length === 0) return;
-
-  // Rebels no longer teleport across the map: each staging neutral city can
-  // only attack cities adjacent or reachable by sea from it.
-  const ownedIds = new Set(owned.map((/** @type {any} */ city) => city.id));
-  const staging = [];
-  for (const source of neutral) {
-    const targets = [
-      ...(source.neighbors ?? []),
-      ...(source.seaNeighbors ?? []),
-    ]
-      .filter((/** @type {number} */ id) => ownedIds.has(id))
-      .map((/** @type {number} */ id) => state.cities[id]);
-    if (targets.length > 0) staging.push({ source, targets });
-  }
-  if (staging.length === 0) return;
-
-  const armyCount = Math.min(
-    config.maxArmiesPerWave ?? 6,
-    (config.armiesBase ?? 1) + Math.floor(state.wave / (config.armiesPerWaveStep ?? 2)),
-  );
-  const totalSoldiers = config.baseSoldiers + state.wave * config.soldiersPerWave;
-
-  for (let index = 0; index < armyCount; index += 1) {
-    const pick = staging[Math.floor(nextStateRandom(state) * staging.length)];
-    const source = pick.source;
-    const target =
-      pick.targets[Math.floor(nextStateRandom(state) * pick.targets.length)];
-    if (!target || !source || target.id === source.id) continue;
-
-    const siegeCount =
-      state.wave >= (config.siegeFromWave ?? 99)
-        ? Math.max(1, Math.round(totalSoldiers * 0.05))
-        : 0;
-    const cavalryCount =
-      state.wave >= (config.cavalryFromWave ?? 99)
-        ? Math.round(totalSoldiers * 0.2)
-        : 0;
-    const infantryCount = Math.max(1, totalSoldiers - cavalryCount - siegeCount);
-    const units = { infantry: infantryCount, cavalry: cavalryCount, siege: siegeCount };
-    const travelTicks = Math.round(
-      (unitTravelSeconds(units, balance) * 1000) / balance.tickMs,
-    );
-    state.armies.push({
-      id: state.nextArmyId,
-      owner: -1,
-      fromCity: source.id,
-      toCity: target.id,
-      soldiers: totalUnits(units),
-      units,
-      departTick: state.tick,
-      arriveTick: state.tick + travelTicks,
-      sea: false,
-      rebel: true,
-    });
-    state.nextArmyId += 1;
-  }
-  state.events.push({ type: 'wave', wave: state.wave, armies: armyCount });
-}
-
-/**
  * Expire old diplomacy offers and let AI players answer requests.
  * @param {any} state
  * @param {any} balance
@@ -723,12 +643,6 @@ export function step(state, balance, commands) {
   if (state.phase !== 'playing') return state;
   state.tick += 1;
   state.events = [];
-  if (
-    state.mode === 'endless' &&
-    state.tick >= (state.nextWaveTick ?? Infinity)
-  ) {
-    spawnWave(state, balance);
-  }
 
   for (const command of commands) {
     const result = applyCommand(state, balance, command);
@@ -760,38 +674,6 @@ export function step(state, balance, commands) {
     if (!target) continue;
 
     ensureCityUnits(target);
-    if (army.owner === -1) {
-      if (target.owner === null) continue;
-      const rebelDefense = buildingEffects(balance, target).defense;
-      const battle = resolveBattle(
-        army.units,
-        target,
-        balance,
-        () => nextStateRandom(state),
-        { defenderDefense: rebelDefense },
-      );
-      if (battle.captured) {
-        target.owner = null;
-        target.units = battle.attackerRemaining;
-        syncCityGarrison(target);
-        target.level = Math.max(1, target.level - balance.captureLevelLoss);
-        target.upgrading = null;
-        state.events.push({
-          type: 'rebelCapture',
-          cityId: target.id,
-          wave: state.wave,
-        });
-      } else {
-        target.units = battle.defenderRemaining;
-        syncCityGarrison(target);
-        state.events.push({
-          type: 'rebelAttack',
-          cityId: target.id,
-          wave: state.wave,
-        });
-      }
-      continue;
-    }
     const attacker = state.players[army.owner];
     if (!attacker) continue;
     if (target.owner === army.owner) {

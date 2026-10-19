@@ -371,19 +371,6 @@
     "betrayPenalty": 0.1,
     "aiAcceptChance": 0.6
   },
-  "endless": {
-    "firstWaveSeconds": 40,
-    "waveIntervalSeconds": 45,
-    "minWaveIntervalSeconds": 18,
-    "intervalDecaySeconds": 3,
-    "baseSoldiers": 24,
-    "soldiersPerWave": 10,
-    "armiesBase": 1,
-    "armiesPerWaveStep": 2,
-    "maxArmiesPerWave": 6,
-    "cavalryFromWave": 3,
-    "siegeFromWave": 5
-  },
   "stances": {
     "none": {
       "name": "常规",

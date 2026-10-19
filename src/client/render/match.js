@@ -275,9 +275,7 @@ export function drawMatch(ctx, map, state, camera, options) {
     const x = from.center[0] + (to.center[0] - from.center[0]) * progress;
     const y = from.center[1] + (to.center[1] - from.center[1]) * progress;
 
-    const armyColor =
-      army.owner === -1 ? '#5f5f5f' : ownerColor(state, army.owner);
-    ctx.strokeStyle = armyColor;
+    ctx.strokeStyle = ownerColor(state, army.owner);
     ctx.globalAlpha = 0.55;
     ctx.lineWidth = screen(1.4);
     ctx.setLineDash([screen(4), screen(3)]);
@@ -290,7 +288,7 @@ export function drawMatch(ctx, map, state, camera, options) {
 
     ctx.beginPath();
     ctx.arc(x, y, screen(3.2), 0, Math.PI * 2);
-    ctx.fillStyle = armyColor;
+    ctx.fillStyle = ownerColor(state, army.owner);
     ctx.fill();
 
     const angle = Math.atan2(to.center[1] - from.center[1], to.center[0] - from.center[0]);
@@ -306,17 +304,12 @@ export function drawMatch(ctx, map, state, camera, options) {
       y + Math.sin(angle - 2.5) * head,
     );
     ctx.closePath();
-    ctx.fillStyle = armyColor;
+    ctx.fillStyle = ownerColor(state, army.owner);
     ctx.fill();
 
     ctx.font = `600 ${screen(13)}px ${FONT_STACK}`;
-    const armyLabel =
-      army.owner === -1 ? `叛军 ${army.soldiers}` : String(army.soldiers);
-    ctx.lineWidth = screen(3);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
-    ctx.strokeText(armyLabel, x, y - screen(8));
     ctx.fillStyle = '#1b1b1b';
-    ctx.fillText(armyLabel, x, y - screen(8));
+    ctx.fillText(String(army.soldiers), x, y - screen(8));
   }
 
   // Capture / battle feedback effects.

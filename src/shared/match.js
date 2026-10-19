@@ -193,9 +193,7 @@ export function createMatch(map, balance, options = {}) {
       balance.scenarios?.[options.scenario ?? 'classic']?.matchSeconds ??
       balance.matchSeconds,
     aiProfile: options.aiProfile ?? null,
-    wave: 0,
     nextEventTick: Math.round(((balance.worldEvents?.firstDelaySeconds ?? 75) * 1000) / balance.tickMs),
-    nextWaveTick: Math.round(((balance.endless?.firstWaveSeconds ?? 45) * 1000) / balance.tickMs),
     spawnContinent: players[0]?.startContinent ?? 0,
     capital: humanSpawn?.capital ?? 0,
     rngState: hashSeed(`${seed}:match`),
@@ -223,8 +221,6 @@ export function snapshot(state) {
     phase: state.phase,
     multiplayer: Boolean(state.multiplayer),
     mode: state.mode ?? 'timed',
-    wave: state.wave ?? 0,
-    nextWaveTick: state.nextWaveTick ?? 0,
     matchSeconds: state.matchSeconds,
     players: state.players.map((/** @type {any} */ player) => ({
       ...player,

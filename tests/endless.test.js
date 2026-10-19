@@ -11,58 +11,20 @@ const balance = JSON.parse(
 );
 const map = generateMap({ seed: 31, cityCount: 100 });
 
-test('endless matches start without a timer and schedule the first wave', () => {
+test('endless matches start without a timer or rebel waves', () => {
   const state = createMatch(map, balance, { seed: 31, aiCount: 0, mode: 'endless' });
   assert.equal(state.mode, 'endless');
-  assert.equal(state.wave, 0);
-  assert.equal(
-    state.nextWaveTick,
-    Math.round((balance.endless.firstWaveSeconds * 1000) / balance.tickMs),
-  );
+  assert.equal(state.nextWaveTick, undefined);
+  assert.equal(state.wave, undefined);
 });
 
-test('waves spawn rebel armies and eventually attack cities', () => {
+test('endless mode never spawns rebel armies', () => {
   const state = createMatch(map, balance, { seed: 31, aiCount: 0, mode: 'endless' });
-  let rebelsSeen = false;
-  let attackSeen = false;
-  let played = false;
-  for (let tick = 0; tick < 1200 && state.phase === 'playing'; tick += 1) {
+  for (let tick = 0; tick < 1800 && state.phase === 'playing'; tick += 1) {
     step(state, balance, []);
-    if (state.armies.some((army) => army.owner === -1)) rebelsSeen = true;
-    if (state.events.some((event) => event.type === 'rebelAttack' || event.type === 'rebelCapture')) {
-      attackSeen = true;
-    }
-    if (state.tick > balance.endless.firstWaveSeconds * 10) played = true;
+    assert.ok(!state.armies.some((army) => army.owner < 0));
+    assert.ok(!state.events.some((event) => event.type === 'wave'));
   }
-  assert.ok(played, 'time should pass beyond the first wave');
-  assert.ok(rebelsSeen, 'rebel armies should be spawned');
-  assert.ok(attackSeen, 'rebels should attack at least once');
-});
-
-test('rebel waves only attack cities adjacent or sea-connected to their staging city', () => {
-  const state = createMatch(map, balance, {
-    seed: 41,
-    aiCount: 0,
-    mode: 'endless',
-  });
-  let rebelSeen = 0;
-  for (let tick = 0; tick < 1800; tick += 1) {
-    step(state, balance, []);
-    for (const army of state.armies) {
-      if (army.owner !== -1) continue;
-      rebelSeen += 1;
-      const source = map.cities[army.fromCity];
-      const reachable = new Set([
-        ...(source.neighbors ?? []),
-        ...(source.seaNeighbors ?? []),
-      ]);
-      assert.ok(
-        reachable.has(army.toCity),
-        'rebel target must be adjacent or sea-connected to its staging city',
-      );
-    }
-  }
-  assert.ok(rebelSeen > 0);
 });
 
 test('endless mode does not end on the timed match clock', () => {
@@ -75,23 +37,18 @@ test('endless mode does not end on the timed match clock', () => {
   for (let tick = 0; tick < 400 && state.phase === 'playing'; tick += 1) {
     step(state, balance, []);
   }
-  // Either the player survived past the timer, or rebels eliminated them.
-  if (state.phase === 'ended') {
-    assert.fail('endless mode must not end on the match timer');
-  }
+  assert.equal(state.phase, 'playing');
 });
 
-test('losing every city ends an endless run with the reached wave', () => {
+test('losing every city ends an endless run', () => {
   const state = createMatch(map, balance, { seed: 31, aiCount: 0, mode: 'endless' });
-  // Advance to the first wave, then wipe the human player.
-  while (state.tick < balance.endless.firstWaveSeconds * 10) step(state, balance, []);
   for (const city of state.cities) {
     if (city.owner === 0) city.owner = null;
   }
   step(state, balance, []);
   assert.equal(state.phase, 'lost');
   assert.equal(state.result.mode, 'endless');
-  assert.ok(state.result.wave >= 1);
+  assert.ok(state.result.elapsed >= 0);
 });
 
 test('difficulty profiles include AI pacing controls', () => {

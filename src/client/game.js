@@ -524,7 +524,7 @@ function renderOverview() {
   }`;
   const timeLabel =
     snapshot.mode === 'endless'
-      ? `第 ${snapshot.wave ?? 0} 波`
+      ? `已进行 ${formatClock((snapshot.tick ?? 0) * 0.1)}`
       : `剩余 ${formatClock(
           (snapshot.matchSeconds ?? 0) - (snapshot.tick ?? 0) * 0.1,
         )}`;
@@ -643,7 +643,6 @@ function renderOverview() {
     battle: '战斗',
     worldEvent: '世界事件',
     coalition: '反制联盟',
-    wave: '叛军来袭',
     upgraded: '城市升级',
     starvation: '饥荒',
     diplomacy: '外交变化',
@@ -819,11 +818,10 @@ function updateHud() {
     statObjective.textContent = '';
   }
   if (snapshot.mode === 'endless') {
-    const nextIn = Math.max(
-      0,
-      Math.round((snapshot.nextWaveTick - snapshot.tick) / 10),
+    const elapsed = Math.floor(
+      (snapshot.tick * balance.tickMs) / 1000,
     );
-    statTimer.textContent = `第 ${snapshot.wave ?? 0} 波 · 下一波 ${nextIn}s`;
+    statTimer.textContent = `无尽模式 · 已进行 ${formatClock(elapsed)}`;
   } else {
     const elapsed = Math.floor((snapshot.tick * balance.tickMs) / 1000);
     const remaining = Math.max(0, (snapshot.matchSeconds ?? balance.matchSeconds) - elapsed);
@@ -861,10 +859,6 @@ function handleEvents(events) {
       showToast(
         `${name} 战斗：损失 ${event.attackerLoss}，歼敌 ${event.defenderLoss}`,
       );
-    } else if (event.type === 'wave') {
-      showToast(`第 ${event.wave} 波叛军从边境来袭`);
-    } else if (event.type === 'rebelCapture') {
-      showToast(`叛军攻占 ${map.cities[event.cityId]?.name ?? '一座城市'}`);
     } else if (event.type === 'worldEvent') {
       showToast(`【${event.name}】${event.description}`);
     } else if (event.type === 'coalition') {
@@ -1754,16 +1748,16 @@ function showResult() {
   }
 
   if (!isMultiplayer && snapshot.mode === 'endless') {
-    const wave = snapshot.result.wave ?? 0;
+    const elapsed = snapshot.result.elapsed ?? Math.round(snapshot.tick / 10);
     const best = Math.max(
-      Number(window.localStorage.getItem('wop-endless-best') ?? 0),
-      wave,
+      Number(window.localStorage.getItem('wop-endless-best-score') ?? 0),
+      snapshot.result.score ?? 0,
     );
-    window.localStorage.setItem('wop-endless-best', String(best));
+    window.localStorage.setItem('wop-endless-best-score', String(best));
     resultTitle.textContent =
       snapshot.result.outcome === 'won' ? '无尽胜利' : '无尽结束';
     resultDetail.textContent =
-      `生存 ${wave} 波 · 分数 ${snapshot.result.score} · 历史最佳 ${best} 波`;
+      `用时 ${formatClock(elapsed)} · 分数 ${snapshot.result.score} · 历史最佳 ${best} 分`;
   } else if (isMultiplayer) {
     const myEntry = ranking.find((entry) => entry.id === myPlayerId);
     const myRank = myEntry ? ranking.indexOf(myEntry) + 1 : null;
@@ -1771,16 +1765,12 @@ function showResult() {
       resultTitle.textContent =
         result.winner === myPlayerId ? '胜利' : result.winner === null ? '对局结束' : '结束';
     } else {
-      resultTitle.textContent = '时间到';
+      resultTitle.textContent =
+        snapshot.mode === 'endless' ? '无尽对战结束' : '时间到';
     }
-    const waveInfo =
-      result.wave !== undefined && result.wave !== null
-        ? ` · 第 ${result.wave} 波`
-        : '';
     resultDetail.textContent = myEntry
       ? `城市 ${myEntry.cityCount} · 分数 ${myEntry.score} · 歼敌 ${Math.round(myEntry.kills)}` +
-        (myRank ? ` · 第 ${myRank} 名` : '') +
-        waveInfo
+        (myRank ? ` · 第 ${myRank} 名` : '')
       : '观战中';
   } else {
     const outcome = result.outcome;

@@ -97,7 +97,7 @@ test('rooms can be created in endless mode', () => {
     { mode: 'endless' },
   );
   assert.equal(state.mode, 'endless');
-  assert.ok(state.nextWaveTick > 0);
+  assert.equal(state.nextWaveTick, undefined);
 });
 
 test('multiplayer endless ends when only one player has cities', () => {
