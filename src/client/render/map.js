@@ -149,11 +149,18 @@ export function drawMap(ctx, map, camera, options) {
     ctx.stroke();
   }
 
-  ctx.fillStyle = '#1b1b1b';
+  // Small map-symbol crosses instead of filled dots: less cell-like at density.
+  ctx.strokeStyle = 'rgba(27, 27, 27, 0.55)';
+  ctx.lineWidth = screen(1.1);
+  const markerArm = screen(2.6);
   for (const city of map.cities) {
+    const [x, y] = city.center;
     ctx.beginPath();
-    ctx.arc(city.center[0], city.center[1], screen(2.2), 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(x - markerArm, y);
+    ctx.lineTo(x + markerArm, y);
+    ctx.moveTo(x, y - markerArm);
+    ctx.lineTo(x, y + markerArm);
+    ctx.stroke();
   }
 
   if (showNames && zoom >= LABEL_MIN_ZOOM) {
