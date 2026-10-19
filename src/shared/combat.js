@@ -103,14 +103,16 @@ function applyLosses(units, amount) {
  * @param {any} city
  * @param {any} balance
  * @param {() => number} random
- * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number }} [options]
+ * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number, stance?: { attack?: number, casualty?: number } }} [options]
  * @returns {BattleResult}
  */
 export function resolveBattle(attackerUnits, city, balance, random, options = {}) {
   const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
   const wall = 1 + levelConfig(balance, city.level).wall;
-  const attackMultiplier = 1 + (options.attackerAttack ?? 0);
+  const stance = options.stance ?? null;
+  const attackMultiplier = 1 + (options.attackerAttack ?? 0) + (stance?.attack ?? 0);
   const defenseMultiplier = 1 + (options.defenderDefense ?? 0);
+  const attackerCasualtyMultiplier = 1 + (stance?.casualty ?? 0);
   const siegeBonus = (options.siegeBonus ?? 0) * Math.max(0, wall - 1);
 
   let attacker = normalizeUnits(attackerUnits);
@@ -159,7 +161,15 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
     const defenderTotal = totalUnits(defender);
     attacker = applyLosses(
       attacker,
-      Math.min(attackerTotal, Math.round(attackerTotal * (1 - share) * factor)),
+      Math.min(
+        attackerTotal,
+        Math.round(
+          attackerTotal *
+            (1 - share) *
+            factor *
+            Math.max(0.1, attackerCasualtyMultiplier),
+        ),
+      ),
     );
     defender = applyLosses(
       defender,
@@ -197,7 +207,7 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
  * @param {any} attackerUnits
  * @param {any} city
  * @param {any} balance
- * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number }} [options]
+ * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number, stance?: { attack?: number, casualty?: number } }} [options]
  * @returns {{ attack: number, defense: number, odds: number }}
  */
 export function estimateBattle(attackerUnits, city, balance, options = {}) {
@@ -212,7 +222,7 @@ export function estimateBattle(attackerUnits, city, balance, options = {}) {
       (options.siegeBonus ?? 0) * Math.max(0, wall - 1),
     ) *
     terrain.attack *
-    (1 + (options.attackerAttack ?? 0));
+    (1 + (options.attackerAttack ?? 0) + (options.stance?.attack ?? 0));
   const defense =
     defensePower(
       normalizeUnits(city.units ?? { infantry: city.garrison ?? 0 }),

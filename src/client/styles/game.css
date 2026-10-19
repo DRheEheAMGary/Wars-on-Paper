@@ -466,3 +466,32 @@ body.game-page {
   color: var(--ink-faint);
   cursor: not-allowed;
 }
+
+.stance-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.stance-row button {
+  flex: 1;
+  min-width: 52px;
+  padding: 5px 6px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.stance-row button:hover {
+  border-color: var(--ink);
+}
+
+.stance-row button.is-active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}

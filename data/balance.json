@@ -374,5 +374,35 @@
     "maxArmiesPerWave": 6,
     "cavalryFromWave": 3,
     "siegeFromWave": 5
+  },
+  "stances": {
+    "none": {
+      "name": "常规",
+      "description": "无加成",
+      "attack": 0,
+      "casualty": 0,
+      "travel": 0
+    },
+    "assault": {
+      "name": "突击",
+      "description": "攻击 +20%，自身伤亡 +10%",
+      "attack": 0.2,
+      "casualty": 0.1,
+      "travel": 0
+    },
+    "hold": {
+      "name": "固守",
+      "description": "攻击 -15%，自身伤亡 -20%，行军 +15%",
+      "attack": -0.15,
+      "casualty": -0.2,
+      "travel": 0.15
+    },
+    "raid": {
+      "name": "袭扰",
+      "description": "攻击 -10%，行军时间 -30%",
+      "attack": -0.1,
+      "casualty": 0,
+      "travel": -0.3
+    }
   }
 }

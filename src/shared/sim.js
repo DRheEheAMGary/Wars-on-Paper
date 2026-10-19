@@ -297,7 +297,7 @@ function aiAct(state, balance, player) {
   }
 
   // Attack the weakest reachable city when the odds look good.
-  /** @type {{ from: number, to: number, odds: number, soldiers: number } | null} */
+  /** @type {{ from: number, to: number, odds: number, soldiers: number, stance: string } | null} */
   let bestAttack = null;
   for (const city of owned) {
     ensureCityUnits(city);
@@ -322,6 +322,12 @@ function aiAct(state, balance, player) {
           siegeBonus: effects.siege,
         },
       );
+      const stance =
+        estimate.odds > attackOdds + 0.12
+          ? 'assault'
+          : estimate.odds < attackOdds
+            ? 'raid'
+            : 'none';
       if (estimate.odds < attackOdds) continue;
       if (!bestAttack || estimate.odds > bestAttack.odds) {
         bestAttack = {
@@ -329,6 +335,7 @@ function aiAct(state, balance, player) {
           to: targetId,
           odds: estimate.odds,
           soldiers: city.garrison,
+          stance,
         };
       }
     }
@@ -339,6 +346,7 @@ function aiAct(state, balance, player) {
       fromCity: bestAttack.from,
       toCity: bestAttack.to,
       soldiers: bestAttack.soldiers,
+      stance: bestAttack.stance,
       owner: player.id,
     });
   }
@@ -552,6 +560,7 @@ export function step(state, balance, commands) {
         attackerAttack: Math.max(0, attackerTech.attack - betrayalPenalty),
         defenderDefense: (defenderTech.defense ?? 0) + defenderBuildings.defense,
         siegeBonus: attackerTech.siege,
+        stance: balance.stances?.[army.stance ?? 'none'],
       },
     );
     const previousOwner = target.owner;

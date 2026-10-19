@@ -117,6 +117,7 @@ let panelCityId = -1;
 let panelRefs = null;
 /** @type {{ cityId: number, type: string, started: number }[]} */
 let effects = [];
+let selectedStance = 'none';
 let myPlayerId = 0;
 /** @type {WebSocket | null} */
 let ws = null;
@@ -392,6 +393,13 @@ function renderPanel() {
   }
 }
 
+function updateStanceButtons() {
+  if (!panelRefs?.stanceButtons) return;
+  for (const [stanceId, button] of panelRefs.stanceButtons) {
+    button.classList.toggle('is-active', stanceId === selectedStance);
+  }
+}
+
 function buildPanel() {
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
@@ -435,6 +443,55 @@ function buildPanel() {
 
     panelRefs.upgradeInfo = createElement('p', 'panel-sub', '');
     panelElement.append(panelRefs.upgradeInfo);
+
+  if (owned) {
+    panelElement.append(createElement('p', 'panel-label', '行军姿态'));
+    const stanceRow = createElement('div', 'stance-row');
+    panelRefs.stanceButtons = new Map();
+    for (const [stanceId, stance] of Object.entries(balance.stances ?? {})) {
+      const button = createElement('button', '', stance.name);
+      button.title = stance.description ?? '';
+      button.addEventListener('click', () => {
+        selectedStance = stanceId;
+        updateStanceButtons();
+      });
+      stanceRow.append(button);
+      panelRefs.stanceButtons.set(stanceId, button);
+    }
+    panelElement.append(stanceRow);
+
+    panelElement.append(createElement('p', 'panel-label', '派兵数量'));
+    const dispatch = createElement('div', 'dispatch dispatch-amount');
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'dispatch-range';
+    slider.min = '1';
+    const garrison = cityState.garrison;
+    slider.max = String(Math.max(1, garrison));
+    slider.value = String(Math.max(1, Math.floor(garrison / 2)));
+    const count = createElement('span', 'dispatch-count', slider.value);
+    slider.addEventListener('input', () => {
+      count.textContent = slider.value;
+    });
+
+    dispatch.append(slider, count);
+    panelElement.append(dispatch);
+    panelElement.append(
+      createElement(
+        'p',
+        'panel-sub',
+        '按住已选中的城市拖到目标：自己的城市可跨任意距离调兵；攻击其他城市仅限相邻或渡海。',
+      ),
+    );
+    panelRefs.amountSlider = slider;
+    panelRefs.amountCount = count;
+  } else {
+    panelElement.append(
+      createElement('p', 'panel-sub', '点击你自己的城市选中后，按住城市拖到目标城市即可派兵。'),
+    );
+  }
+
 
     panelElement.append(createElement('p', 'panel-label', '建筑'));
     panelRefs.buildingInfo = createElement('p', 'panel-sub', '');
@@ -517,38 +574,6 @@ function buildPanel() {
     panelRefs.requestsSignature = '';
   }
 
-  if (owned) {
-    panelElement.append(createElement('p', 'panel-label', '派兵数量'));
-    const dispatch = createElement('div', 'dispatch dispatch-amount');
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.className = 'dispatch-range';
-    slider.min = '1';
-    const garrison = cityState.garrison;
-    slider.max = String(Math.max(1, garrison));
-    slider.value = String(Math.max(1, Math.floor(garrison / 2)));
-    const count = createElement('span', 'dispatch-count', slider.value);
-    slider.addEventListener('input', () => {
-      count.textContent = slider.value;
-    });
-
-    dispatch.append(slider, count);
-    panelElement.append(dispatch);
-    panelElement.append(
-      createElement(
-        'p',
-        'panel-sub',
-        '按住已选中的城市拖到目标：自己的城市可跨任意距离调兵；攻击其他城市仅限相邻或渡海。',
-      ),
-    );
-    panelRefs.amountSlider = slider;
-    panelRefs.amountCount = count;
-  } else {
-    panelElement.append(
-      createElement('p', 'panel-sub', '点击你自己的城市选中后，按住城市拖到目标城市即可派兵。'),
-    );
-  }
 
   updatePanel();
 }
@@ -571,6 +596,9 @@ function updatePanel() {
     panelRefs.garrisonCapMultiplier =
       1 +
       buildingEffects(balance, { buildings: cityState.buildings ?? [] }).garrisonCap;
+    for (const [stanceId, button] of panelRefs.stanceButtons ?? []) {
+      button.classList.toggle('is-active', stanceId === selectedStance);
+    }
     for (const [unitType, button] of panelRefs.recruits ?? []) {
       const unit = balance.units[unitType];
       const batch = unit.batch;

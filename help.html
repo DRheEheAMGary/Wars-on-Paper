@@ -29,6 +29,7 @@
           <a href="#controls">操作</a>
           <a href="#economy">资源与城市</a>
           <a href="#units">兵种</a>
+          <a href="#stances">姿态</a>
           <a href="#tech">科技</a>
           <a href="#buildings">建筑</a>
           <a href="#diplomacy">外交</a>
@@ -82,6 +83,20 @@
             </tbody>
           </table>
           <p>派兵时按当前驻军构成比例拆分；队伍行军速度按最慢兵种计算。</p>
+        </section>
+
+        <section id="stances" class="help-section">
+          <h2>行军姿态</h2>
+          <table class="help-table">
+            <thead><tr><th>姿态</th><th>效果</th><th>适合</th></tr></thead>
+            <tbody>
+              <tr><td>常规</td><td>无加成</td><td>默认</td></tr>
+              <tr><td>突击</td><td>攻击 +20%，自身伤亡 +10%</td><td>优势兵力强攻</td></tr>
+              <tr><td>固守</td><td>攻击 −15%，自身伤亡 −20%，行军 +15%</td><td>硬啃高防城市、保留兵力</td></tr>
+              <tr><td>袭扰</td><td>攻击 −10%，行军时间 −30%</td><td>抢时间、支援、骚扰</td></tr>
+            </tbody>
+          </table>
+          <p>姿态只影响这一支派出军队；AI 也会根据胜率选择姿态。</p>
         </section>
 
         <section id="tech" class="help-section">

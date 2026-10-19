@@ -172,9 +172,15 @@ export function applyCommand(state, balance, command) {
     syncCityGarrison(from);
 
     const effects = techEffects(player, balance);
+    const stanceId = balance.stances?.[command.stance] ? command.stance : 'none';
+    const stance = balance.stances?.[stanceId] ?? {
+      attack: 0,
+      casualty: 0,
+      travel: 0,
+    };
     const travelSeconds = unitTravelSeconds(sent, balance);
     const baseTicks = Math.round((travelSeconds * 1000) / balance.tickMs);
-    const logistics = 1 - effects.travel;
+    const logistics = (1 - effects.travel) * (1 + stance.travel);
 
     let travelTicks;
     let sea = false;
@@ -197,6 +203,7 @@ export function applyCommand(state, balance, command) {
       toCity: to.id,
       soldiers: sentTotal,
       units: sent,
+      stance: stanceId,
       departTick: state.tick,
       arriveTick: state.tick + travelTicks,
       sea,
