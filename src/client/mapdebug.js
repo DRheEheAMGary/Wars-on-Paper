@@ -71,7 +71,9 @@ function regenerate(seed, cityCount) {
   citySelect.value = String(cityCount);
   statsElement.textContent =
     `${map.cities.length} 座城市 · 种子 ${map.seed} · 生成 ` +
-    `${generationMs.toFixed(0)} ms · ${map.meta.continentCount} 块大陆 · ` +
+    `${generationMs.toFixed(0)} ms · ` +
+    `${map.meta.continentCount - map.meta.islandCount} 块大陆 + ` +
+    `${map.meta.islandCount} 座岛屿 · ` +
     `陆地 ${(map.meta.landAreaFraction * 100).toFixed(1)}% · ` +
     `海洋 ${((1 - map.meta.landAreaFraction) * 100).toFixed(1)}%`;
   updateHoverInfo();

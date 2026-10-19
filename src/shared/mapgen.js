@@ -55,6 +55,7 @@ import {
  *   landAreaFraction: number,
  *   continentCount: number,
  *   continentSizes: number[],
+ *   islandCount: number,
  *   lakeCount: number,
  * }} meta
  */
@@ -436,17 +437,20 @@ function createContinentShape(rng, center, bounds, noise) {
   const scaleX = rng.range(0.55, 1.4);
   const scaleY = rng.range(0.55, 1.4);
   const normScale = Math.min(width, height) * 0.5;
-  const coastWeight = rng.range(0.1, 0.2);
+  const coastWeight = rng.range(0.13, 0.22);
   const frequency = rng.range(1.5, 2.6);
   const offsetU = rng.range(0, 9);
   const offsetV = rng.range(0, 9);
+  const offsetU2 = rng.range(0, 9);
+  const offsetV2 = rng.range(0, 9);
 
   /** @type {{ harmonic: number, amplitude: number, phase: number }[]} */
   const harmonics = [];
   for (let harmonic = 2; harmonic <= 7; harmonic += 1) {
+    const base = rng.range(0.035, 0.17) * (harmonic <= 3 ? 1 : 0.55);
     harmonics.push({
       harmonic,
-      amplitude: rng.range(0.035, 0.17) * (harmonic <= 3 ? 1 : 0.55),
+      amplitude: Math.max(base, harmonic <= 3 ? 0.08 : 0.03),
       phase: rng.range(0, Math.PI * 2),
     });
   }
@@ -467,7 +471,9 @@ function createContinentShape(rng, center, bounds, noise) {
       shape = Math.max(0.5, shape);
       const u = (x - bounds.minX) / width;
       const v = (y - bounds.minY) / height;
-      const coast = noise(u * frequency + offsetU, v * frequency + offsetV);
+      const coast =
+        noise(u * frequency + offsetU, v * frequency + offsetV) * 0.62 +
+        noise(u * frequency * 2.3 + offsetU2, v * frequency * 2.3 + offsetV2) * 0.38;
       return radius / shape / normScale + (coast - 0.5) * coastWeight;
     },
   };
@@ -632,6 +638,85 @@ function selectContinentCells(order, target, owner, neighbors, continentIndex) {
 }
 
 /**
+ * Roughen a continent by peeling random coastal cells until it reaches
+ * `target`. Removing land can never create a lake, and any removal that would
+ * split the continent is rejected.
+ * @param {Set<number>} selected
+ * @param {number} target
+ * @param {Map<number, number>} owner
+ * @param {number[][]} neighbors
+ * @param {number} continentIndex
+ * @param {import('./rng.js').Rng} rng
+ * @param {Set<number>} borderCells
+ * @returns {Set<number>}
+ */
+function erodeContinent(
+  selected,
+  target,
+  owner,
+  neighbors,
+  continentIndex,
+  rng,
+  borderCells,
+) {
+  let guard = 0;
+
+  while (selected.size > target && guard < 400) {
+    guard += 1;
+
+    /** @type {number[]} */
+    const boundary = [];
+    for (const id of selected) {
+      let isBoundary = borderCells.has(id);
+      if (!isBoundary) {
+        for (const neighbour of neighbors[id]) {
+          if (!selected.has(neighbour)) {
+            isBoundary = true;
+            break;
+          }
+        }
+      }
+      if (isBoundary) boundary.push(id);
+    }
+    if (boundary.length === 0) break;
+
+    let removed = false;
+    for (const id of rng.shuffle(boundary)) {
+      selected.delete(id);
+      owner.delete(id);
+
+      const first = selected.values().next();
+      let connected = first.done === true;
+      if (!first.done) {
+        const seen = new Set([first.value]);
+        const stack = [first.value];
+        while (stack.length > 0) {
+          const current = /** @type {number} */ (stack.pop());
+          for (const neighbour of neighbors[current]) {
+            if (selected.has(neighbour) && !seen.has(neighbour)) {
+              seen.add(neighbour);
+              stack.push(neighbour);
+            }
+          }
+        }
+        connected = seen.size === selected.size;
+      }
+
+      if (connected) {
+        removed = true;
+        break;
+      }
+      selected.add(id);
+      owner.set(id, continentIndex);
+    }
+
+    if (!removed) break;
+  }
+
+  return selected;
+}
+
+/**
  * Connected components of a land set using the candidate adjacency graph.
  * @param {Set<number>} land
  * @param {number[][]} neighbors
@@ -675,6 +760,7 @@ function findComponents(land, neighbors) {
  * @param {Map<number, number>} continentSizes
  * @param {Set<number>} protectedCells
  * @param {Set<number>} borderCells
+ * @param {number} keepAtLeast Minimum continent size to keep when removing.
  * @returns {number | null}
  */
 function findRemovableCell(
@@ -685,12 +771,13 @@ function findRemovableCell(
   continentSizes,
   protectedCells,
   borderCells,
+  keepAtLeast,
 ) {
   for (const id of order) {
     if (!land.has(id) || protectedCells.has(id)) continue;
     const continent = continentOf.get(id);
     if (continent === undefined) continue;
-    if ((continentSizes.get(continent) ?? 0) <= 1) continue;
+    if ((continentSizes.get(continent) ?? 0) <= keepAtLeast) continue;
 
     let landNeighbours = 0;
     let oceanNeighbours = 0;
@@ -793,6 +880,7 @@ function removeLakes(
       continentSizes,
       protectedCells,
       borderCells,
+      1,
     );
     if (victim === null) break;
     const continent = continentOf.get(victim);
@@ -853,6 +941,64 @@ function generateNames(rng, count) {
     names.push(name);
   }
   return names;
+}
+
+/**
+ * How many small islands to add and how many cities each one takes from the
+ * continent edges.
+ * @param {import('./rng.js').Rng} rng
+ * @param {number} cityCount
+ * @returns {number[]}
+ */
+function allocateIslandSizes(rng, cityCount) {
+  if (cityCount < 40) return [];
+  const count = cityCount >= 240 ? 3 : cityCount >= 120 ? 2 : 1;
+  /** @type {number[]} */
+  const sizes = [];
+  for (let index = 0; index < count; index += 1) sizes.push(rng.int(2, 3));
+  return sizes;
+}
+
+/**
+ * Find the emptiest ocean cell for a new island: not owned, not adjacent to any
+ * land, and as far as possible from existing land.
+ * @param {Point[]} sites
+ * @param {Map<number, number>} owner
+ * @param {number[][]} neighbors
+ * @param {Set<number>} borderCells
+ * @returns {number}
+ */
+function pickIslandSpot(sites, owner, neighbors, borderCells) {
+  let bestId = -1;
+  let bestDistance = -Infinity;
+
+  for (let id = 0; id < sites.length; id += 1) {
+    if (owner.has(id) || borderCells.has(id)) continue;
+
+    let blocked = false;
+    for (const neighbour of neighbors[id]) {
+      if (owner.has(neighbour)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) continue;
+
+    let nearest = Infinity;
+    for (const claimedId of owner.keys()) {
+      const distance = Math.hypot(
+        sites[claimedId][0] - sites[id][0],
+        sites[claimedId][1] - sites[id][1],
+      );
+      if (distance < nearest) nearest = distance;
+    }
+    if (nearest > bestDistance) {
+      bestDistance = nearest;
+      bestId = id;
+    }
+  }
+
+  return bestId;
 }
 
 /**
@@ -946,9 +1092,17 @@ export function generateMap(options = {}) {
   let continentOf = new Map();
   let built = false;
 
+  let islandCount = 0;
+
   for (let attempt = 0; attempt < 10 && !built; attempt += 1) {
     const centers = pickContinentCenters(layoutRng, insetBounds, continentTarget);
-    const sizes = allocateContinentSizes(layoutRng, cityCount, continentTarget);
+    const islandSizes = allocateIslandSizes(layoutRng, cityCount);
+    const islandCells = islandSizes.reduce((sum, size) => sum + size, 0);
+    const sizes = allocateContinentSizes(
+      layoutRng,
+      cityCount - islandCells,
+      continentTarget,
+    );
     /** @type {Map<number, number>} */
     const owner = new Map();
     /** @type {Set<number>} */
@@ -966,12 +1120,56 @@ export function generateMap(options = {}) {
       const order = sites
         .map((_, id) => id)
         .sort((a, b) => values[a] - values[b]);
+      const target = sizes[continent];
+      const erosionBudget = Math.max(2, Math.ceil(target * 0.25));
       const selected = selectContinentCells(
         order,
-        sizes[continent],
+        target + erosionBudget,
         owner,
         neighbors,
         continent,
+      );
+      if (selected === null) {
+        ok = false;
+        break;
+      }
+      erodeContinent(
+        selected,
+        target,
+        owner,
+        neighbors,
+        continent,
+        createRng(deriveSeed(seed, `erosion:${attempt}:${continent}`)),
+        borderCells,
+      );
+      for (const id of selected) claimed.add(id);
+    }
+
+    // Islands: take a couple of cities from the continent edges and place them
+    // in the emptiest ocean spots.
+    for (
+      let island = 0;
+      ok && island < islandSizes.length;
+      island += 1
+    ) {
+      const spot = pickIslandSpot(sites, owner, neighbors, borderCells);
+      if (spot < 0) {
+        ok = false;
+        break;
+      }
+      const center = sites[spot];
+      const distances = sites.map(([x, y]) =>
+        Math.hypot(x - center[0], y - center[1]),
+      );
+      const order = sites
+        .map((_, id) => id)
+        .sort((a, b) => distances[a] - distances[b]);
+      const selected = selectContinentCells(
+        order,
+        islandSizes[island],
+        owner,
+        neighbors,
+        continentTarget + island,
       );
       if (selected === null) {
         ok = false;
@@ -983,10 +1181,42 @@ export function generateMap(options = {}) {
     if (!ok) continue;
     land = claimed;
     continentOf = owner;
+    islandCount = islandSizes.length;
     built = true;
   }
 
   if (!built) throw new Error('Failed to build the continent layout');
+
+  // Erosion may leave a few extra cells; trim back to the exact city count.
+  const layoutComponents = findComponents(land, neighbors);
+  continentOf = layoutComponents.continentOf;
+  if (land.size > cityCount) {
+    /** @type {Map<number, number>} */
+    const continentSizes = new Map();
+    for (const id of land) {
+      const continent = continentOf.get(id) ?? 0;
+      continentSizes.set(continent, (continentSizes.get(continent) ?? 0) + 1);
+    }
+    while (land.size > cityCount) {
+      const victim = findRemovableCell(
+        land,
+        neighbors,
+        continentOf,
+        trimOrder,
+        continentSizes,
+        new Set(),
+        borderCells,
+        2,
+      );
+      if (victim === null) break;
+      const continent = continentOf.get(victim);
+      land.delete(victim);
+      continentOf.delete(victim);
+      if (continent !== undefined) {
+        continentSizes.set(continent, (continentSizes.get(continent) ?? 1) - 1);
+      }
+    }
+  }
 
   const lakeCount = removeLakes(
     land,
@@ -1101,6 +1331,7 @@ export function generateMap(options = {}) {
       landAreaFraction: areaSum / worldArea,
       continentCount: continentSizes.length,
       continentSizes,
+      islandCount,
       lakeCount,
     },
   };
