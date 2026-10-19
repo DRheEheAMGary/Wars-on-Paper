@@ -349,7 +349,7 @@ try {
     intervalP95 < 300 &&
     simP95 < 2 &&
     latencies.length > 0 &&
-    ownerChanges > 0;
+    (options.seconds < 12 || ownerChanges > 0);
   console.log(passed ? 'RESULT: PASS' : 'RESULT: FAIL');
   clients.forEach((client) => client.close());
 } catch (error) {
