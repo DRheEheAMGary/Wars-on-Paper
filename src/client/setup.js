@@ -120,7 +120,9 @@ function populate(balance) {
 function syncMode() {
   const endless = modeSelect.value === 'endless';
   minutesSelect.disabled = endless;
-  minutesSelect.closest('.setup-row')?.classList.toggle('is-disabled', endless);
+  const row = minutesSelect.closest('.setup-row');
+  row?.classList.toggle('hidden', endless);
+  row?.classList.toggle('is-disabled', endless);
 }
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' })

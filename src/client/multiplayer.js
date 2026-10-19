@@ -263,6 +263,7 @@ function connect() {
 function syncCreateMode() {
   const endless = createMode.value === 'endless';
   createMinutes.disabled = endless;
+  createMinutesLabel.classList.toggle('hidden', endless);
   createMinutesLabel.classList.toggle('is-disabled', endless);
 }
 

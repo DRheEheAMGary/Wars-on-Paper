@@ -235,3 +235,7 @@
 .lobby-card label.is-disabled select {
   cursor: not-allowed;
 }
+
+.lobby-card label.hidden {
+  display: none;
+}

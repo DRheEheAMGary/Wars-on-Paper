@@ -189,3 +189,7 @@
 .setup-row.is-disabled {
   opacity: 0.45;
 }
+
+.setup-row.hidden {
+  display: none;
+}
