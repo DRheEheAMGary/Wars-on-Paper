@@ -267,6 +267,9 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     multiplayer: true,
     mode: options.mode === 'endless' ? 'endless' : 'timed',
     wave: 0,
+    nextEventTick: Math.round(
+      ((balance.worldEvents?.firstDelaySeconds ?? 75) * 1000) / balance.tickMs,
+    ),
     nextWaveTick: Math.round(((balance.endless?.firstWaveSeconds ?? 45) * 1000) / balance.tickMs),
     matchSeconds: options.matchSeconds ?? balance.matchSeconds,
     spawnContinent: players[0]?.startContinent ?? 0,

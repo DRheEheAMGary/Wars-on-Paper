@@ -114,6 +114,19 @@ test('multiplayer endless ends when only one player has cities', () => {
   assert.equal(state.result.winner, 0);
 });
 
+test('multiplayer rooms schedule world events', () => {
+  const state = createMultiplayerMatch(
+    map,
+    balance,
+    [{ id: 0, name: 'A' }, { id: 1, name: 'B' }],
+    {},
+  );
+  assert.ok(state.nextEventTick > 0);
+  state.tick = state.nextEventTick - 1;
+  step(state, balance, []);
+  assert.ok(state.events.some((event) => event.type === 'worldEvent'));
+});
+
 test('solo endless test rooms do not end instantly', () => {
   const state = createMultiplayerMatch(
     map,

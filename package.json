@@ -1,6 +1,6 @@
 {
   "name": "wars-on-paper",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "private": true,
   "type": "module",
   "description": "Wars on Paper — real-time territory conquest game for the web",
