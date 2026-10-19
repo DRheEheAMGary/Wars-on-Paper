@@ -17,7 +17,8 @@ test('world events trigger and apply effects', () => {
 });
 test('leading human triggers an AI coalition', () => {
   const state = createMatch(map, balance, { seed: 91, aiCount: 2 });
-  for (const city of state.cities) if (city.owner === null) city.owner = 0;
+  const neutrals = state.cities.filter((city) => city.owner === null).slice(0, 12);
+  for (const city of neutrals) city.owner = 0;
   for (let tick = 0; tick < 20 && !state.coalition; tick += 1) step(state, balance, []);
   assert.equal(state.coalition, true);
   const ais = state.players.filter((player) => player.isAI);
