@@ -9,6 +9,11 @@ import { estimateBattle, resolveBattle } from './combat.js';
 import { applyCommand } from './commands.js';
 import { levelConfig, tickEconomy } from './economy.js';
 import { techEffects, availableTechs } from './tech.js';
+import { buildingEffects } from './buildings.js';
+import {
+  isBlocked,
+  isFriendly,
+} from './diplomacy.js';
 import {
   ensureCityUnits,
   mergeUnits,
@@ -149,6 +154,33 @@ function aiAct(state, balance, player) {
   const attackOdds = state.aiProfile?.aiAttackOdds ?? balance.ai?.attackOdds ?? 0.58;
   const effects = techEffects(player, balance);
 
+  // Occasionally propose a truce/alliance to a neighbouring player.
+  if (random() < 0.06) {
+    /** @type {Set<number>} */
+    const neighbours = new Set();
+    for (const city of owned) {
+      for (const targetId of city.neighbors) {
+        const owner = state.cities[targetId].owner;
+        if (owner !== null && owner !== player.id) neighbours.add(owner);
+      }
+    }
+    const candidates = [...neighbours].filter(
+      (id) => !isFriendly(state, player.id, id) && !isBlocked(state, player.id, id),
+    );
+    if (candidates.length > 0) {
+      const targetId = candidates[Math.floor(random() * candidates.length)];
+      const kind =
+        state.players[targetId].cityCount > player.cityCount ? 'truce' : 'ally';
+      const result = applyCommand(state, balance, {
+        type: 'diplomacy',
+        action: kind,
+        targetId,
+        owner: player.id,
+      });
+      if (result.ok) return;
+    }
+  }
+
   // Research an available technology.
   if (!player.research && player.gold > reserve * 2) {
     const candidates = availableTechs(player, balance).filter(
@@ -162,6 +194,31 @@ function aiAct(state, balance, player) {
         owner: player.id,
       });
       return;
+    }
+  }
+
+  // Build a city improvement when there is a free slot.
+  if (random() < 0.14) {
+    const buildable = owned.filter(
+      (/** @type {any} */ city) => (city.buildings ?? []).length < (balance.buildingSlots ?? 2),
+    );
+    if (buildable.length > 0) {
+      const city = buildable[Math.floor(random() * buildable.length)];
+      const options = (balance.buildings ?? []).filter(
+        (/** @type {any} */ building) =>
+          !(city.buildings ?? []).includes(building.id) &&
+          player.gold >= building.costGold + reserve,
+      );
+      if (options.length > 0) {
+        const building = options[Math.floor(random() * options.length)];
+        const result = applyCommand(state, balance, {
+          type: 'build',
+          cityId: city.id,
+          buildingId: building.id,
+          owner: player.id,
+        });
+        if (result.ok) return;
+      }
     }
   }
 
@@ -220,13 +277,18 @@ function aiAct(state, balance, player) {
       if (!target || target.owner === player.id) continue;
       const defenderTech =
         target.owner === null ? {} : techEffects(state.players[target.owner], balance);
+      const defenderBuildings = buildingEffects(balance, target);
+      const penalty =
+        player.betrayalUntil > state.tick
+          ? balance.diplomacy?.betrayPenalty ?? 0.1
+          : 0;
       const estimate = estimateBattle(
         city.units,
         target,
         balance,
         {
-          attackerAttack: effects.attack,
-          defenderDefense: defenderTech.defense,
+          attackerAttack: Math.max(0, effects.attack - penalty),
+          defenderDefense: defenderTech.defense + defenderBuildings.defense,
           siegeBonus: effects.siege,
         },
       );
@@ -248,6 +310,31 @@ function aiAct(state, balance, player) {
       toCity: bestAttack.to,
       soldiers: bestAttack.soldiers,
       owner: player.id,
+    });
+  }
+}
+
+/**
+ * Expire old diplomacy offers and let AI players answer requests.
+ * @param {any} state
+ * @param {any} balance
+ */
+function runDiplomacy(state, balance) {
+  const config = balance.diplomacy ?? {};
+  const requestTicks = Math.round((config.requestSeconds ?? 30) * 1000 / balance.tickMs);
+  state.diplomacyRequests = (state.diplomacyRequests ?? []).filter(
+    (/** @type {any} */ request) => state.tick - request.createdTick <= requestTicks,
+  );
+  for (const request of [...state.diplomacyRequests]) {
+    const target = state.players[request.to];
+    if (!target || !target.isAI) continue;
+    const chance = config.aiAcceptChance ?? 0.6;
+    const accept = nextStateRandom(state) < chance;
+    applyCommand(state, balance, {
+      type: 'diplomacy',
+      action: accept ? 'accept' : 'decline',
+      requestId: request.id,
+      owner: request.to,
     });
   }
 }
@@ -312,14 +399,19 @@ export function step(state, balance, commands) {
     const defender =
       target.owner === null ? null : state.players[target.owner];
     const defenderTech = defender ? techEffects(defender, balance) : {};
+    const defenderBuildings = buildingEffects(balance, target);
+    const betrayalPenalty =
+      attacker.betrayalUntil > state.tick
+        ? balance.diplomacy?.betrayPenalty ?? 0.1
+        : 0;
     const battle = resolveBattle(
       army.units,
       target,
       balance,
       () => nextStateRandom(state),
       {
-        attackerAttack: attackerTech.attack,
-        defenderDefense: defenderTech.defense ?? 0,
+        attackerAttack: Math.max(0, attackerTech.attack - betrayalPenalty),
+        defenderDefense: (defenderTech.defense ?? 0) + defenderBuildings.defense,
         siegeBonus: attackerTech.siege,
       },
     );
@@ -371,6 +463,7 @@ export function step(state, balance, commands) {
   }
   state.armies = remaining;
 
+  runDiplomacy(state, balance);
   runAI(state, balance);
   tickEconomy(state, balance);
   updateStats(state, balance);

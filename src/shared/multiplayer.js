@@ -200,6 +200,7 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     alive: true,
     tech: {},
     research: null,
+    betrayalUntil: 0,
   }));
 
   /** @type {any[]} */
@@ -241,6 +242,10 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     cities,
     armies: [],
     nextArmyId: 1,
+    diplomacy: {},
+    diplomacyRequests: [],
+    diplomacyBlock: {},
+    nextRequestId: 1,
     events: [],
     result: null,
   };
@@ -302,6 +307,7 @@ export function addLatePlayer(state, balance, map, info) {
     alive: true,
     tech: {},
     research: null,
+    betrayalUntil: 0,
   });
 
   for (const id of spawn.cities) {

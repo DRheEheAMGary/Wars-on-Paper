@@ -308,5 +308,52 @@
     "infantry",
     "cavalry",
     "siege"
-  ]
+  ],
+  "buildingSlots": 2,
+  "buildings": [
+    {
+      "id": "market",
+      "name": "市集",
+      "description": "+25% 金币",
+      "costGold": 300,
+      "effects": {
+        "gold": 0.25
+      }
+    },
+    {
+      "id": "granary",
+      "name": "粮仓",
+      "description": "+25% 粮食",
+      "costGold": 300,
+      "effects": {
+        "food": 0.25
+      }
+    },
+    {
+      "id": "barracks",
+      "name": "兵营",
+      "description": "+30% 驻军上限",
+      "costGold": 350,
+      "effects": {
+        "garrisonCap": 0.3
+      }
+    },
+    {
+      "id": "walls",
+      "name": "城墙",
+      "description": "+20% 防御",
+      "costGold": 400,
+      "effects": {
+        "defense": 0.2
+      }
+    }
+  ],
+  "diplomacy": {
+    "truceSeconds": 60,
+    "requestSeconds": 30,
+    "maxAllies": 2,
+    "betraySeconds": 60,
+    "betrayPenalty": 0.1,
+    "aiAcceptChance": 0.6
+  }
 }

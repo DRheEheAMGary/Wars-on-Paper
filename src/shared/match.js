@@ -104,6 +104,7 @@ export function createMatch(map, balance, options = {}) {
       isAI: index > 0,
       tech: {},
       research: null,
+      betrayalUntil: 0,
     }));
 
   /** @type {any[]} */
@@ -145,6 +146,10 @@ export function createMatch(map, balance, options = {}) {
     cities,
     armies: [],
     nextArmyId: 1,
+    diplomacy: {},
+    diplomacyRequests: [],
+    diplomacyBlock: {},
+    nextRequestId: 1,
     events: [],
     result: null,
   };
@@ -181,6 +186,9 @@ export function snapshot(state) {
       upgrading: city.upgrading ? { endsTick: city.upgrading.endsTick } : null,
     })),
     armies: state.armies.map((/** @type {any} */ army) => ({ ...army })),
+    diplomacy: { ...(state.diplomacy ?? {}) },
+    diplomacyRequests: [...(state.diplomacyRequests ?? [])],
+    diplomacyBlock: { ...(state.diplomacyBlock ?? {}) },
     events: state.events,
     result: state.result,
   };

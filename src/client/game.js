@@ -9,6 +9,17 @@ import { drawMatch, cityAt } from './render/match.js';
 import { estimateBattle } from '../shared/combat.js';
 import { techEffects } from '../shared/tech.js';
 import { compositionText, splitUnits } from '../shared/units.js';
+import {
+  buildingById,
+  buildingEffects,
+  buildingSlotsLeft,
+} from '../shared/buildings.js';
+import {
+  countAllies,
+  getRelation,
+  isBlocked,
+  relationLabel,
+} from '../shared/diplomacy.js';
 
 /** @param {string} id @returns {HTMLElement} */
 function mustElement(id) {
@@ -293,6 +304,18 @@ function handleEvents(events) {
       showToast(
         `${name} 战斗：损失 ${event.attackerLoss}，歼敌 ${event.defenderLoss}`,
       );
+    } else if (event.type === 'diplomacy') {
+      if (event.a === myPlayerId || event.b === myPlayerId) {
+        const otherId = event.a === myPlayerId ? event.b : event.a;
+        const otherName = map ? snapshot?.players?.[otherId]?.name : '玩家';
+        if (event.kind === 'break') showToast(`你与 ${otherName} 断盟`);
+        else showToast(`${event.kind === 'ally' ? '结盟' : '停战'}达成：${otherName}`);
+      }
+    } else if (event.type === 'diplomacyRequest') {
+      if (event.to === myPlayerId) {
+        const fromName = snapshot?.players?.[event.from]?.name ?? '玩家';
+        showToast(`${fromName} 请求${event.kind === 'ally' ? '结盟' : '停战'}`);
+      }
     } else if (event.type === 'researched') {
       showToast(`${event.name ?? '科技'} 研发完成`);
     } else if (event.type === 'upgraded') {
@@ -392,6 +415,24 @@ function buildPanel() {
     panelRefs.upgradeInfo = createElement('p', 'panel-sub', '');
     panelElement.append(panelRefs.upgradeInfo);
 
+    panelElement.append(createElement('p', 'panel-label', '建筑'));
+    panelRefs.buildingInfo = createElement('p', 'panel-sub', '');
+    panelElement.append(panelRefs.buildingInfo);
+    const buildingList = createElement('div', 'research-list');
+    panelRefs.buildings = new Map();
+    for (const building of balance.buildings ?? []) {
+      const button = createElement('button', '');
+      button.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'build', cityId: selectedId, buildingId: building.id },
+        });
+      });
+      buildingList.append(button);
+      panelRefs.buildings.set(building.id, { button, building });
+    }
+    panelElement.append(buildingList);
+
     panelElement.append(createElement('p', 'panel-label', '科技'));
     const researchList = createElement('div', 'research-list');
     for (const tech of balance.research ?? []) {
@@ -408,6 +449,51 @@ function buildPanel() {
     panelElement.append(researchList);
     panelRefs.researchInfo = createElement('p', 'panel-sub', '');
     panelElement.append(panelRefs.researchInfo);
+
+    panelElement.append(createElement('p', 'panel-label', '外交'));
+    const diplomacyList = createElement('div', 'diplomacy-list');
+    panelRefs.diplomacy = new Map();
+    for (const other of snapshot.players) {
+      if (other.id === myPlayerId) continue;
+      const row = createElement('div', 'diplomacy-row');
+      const info = createElement('span', 'diplomacy-info', '');
+      const actions = createElement('div', 'diplomacy-actions');
+      const allyButton = createElement('button', '', '结盟');
+      allyButton.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'diplomacy', action: 'ally', targetId: other.id },
+        });
+      });
+      const truceButton = createElement('button', '', '停战');
+      truceButton.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'diplomacy', action: 'truce', targetId: other.id },
+        });
+      });
+      const breakButton = createElement('button', '', '断盟');
+      breakButton.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'diplomacy', action: 'break', targetId: other.id },
+        });
+      });
+      actions.append(allyButton, truceButton, breakButton);
+      row.append(info, actions);
+      diplomacyList.append(row);
+      panelRefs.diplomacy.set(other.id, {
+        info,
+        allyButton,
+        truceButton,
+        breakButton,
+        player: other,
+      });
+    }
+    panelElement.append(diplomacyList);
+    panelRefs.requestsList = createElement('div', 'diplomacy-requests');
+    panelElement.append(panelRefs.requestsList);
+    panelRefs.requestsSignature = '';
   }
 
   if (owned) {
@@ -461,16 +547,20 @@ function updatePanel() {
     (panelRefs.owned ? '' : ' · 中立城市（点击你自己的城市才能操作）');
 
   if (panelRefs.owned) {
+    panelRefs.garrisonCapMultiplier =
+      1 +
+      buildingEffects(balance, { buildings: cityState.buildings ?? [] }).garrisonCap;
     for (const [unitType, button] of panelRefs.recruits ?? []) {
       const unit = balance.units[unitType];
       const batch = unit.batch;
       const gold = unit.costGold * batch;
       const population = unit.costPopulation * batch;
       button.textContent = `招募${unit.name} ×${batch}（${gold} 金 / ${population} 人口）`;
+      const capMultiplier = panelRefs.garrisonCapMultiplier ?? 1;
       button.disabled =
         player.gold < gold ||
         cityState.population < population ||
-        cityState.garrison + batch > config.garrisonCap;
+        cityState.garrison + batch > config.garrisonCap * capMultiplier;
     }
 
     panelRefs.upgrade.textContent =
@@ -514,6 +604,85 @@ function updatePanel() {
       panelRefs.researchInfo.textContent = `研发中：${tech?.name ?? '科技'} · 剩余 ${Math.ceil(remaining / 10)} 秒`;
     } else {
       panelRefs.researchInfo.textContent = '';
+    }
+
+    const built = [...(cityState.buildings ?? [])];
+    const slots = balance.buildingSlots ?? 2;
+    panelRefs.buildingInfo.textContent =
+      `建筑槽 ${built.length}/${slots}` +
+      (built.length > 0
+        ? ` · ${built.map((/** @type {string} */ id) => buildingById(balance, id)?.name ?? id).join(' · ')}`
+        : '');
+    const buildingEffectsTotal = buildingEffects(balance, {
+      buildings: built,
+    });
+    for (const [buildingId, entry] of panelRefs.buildings ?? []) {
+      const has = built.includes(buildingId);
+      entry.button.textContent = has
+        ? `${entry.building.name} · 已建造`
+        : `${entry.building.name}（${entry.building.description}）· ${entry.building.costGold} 金`;
+      entry.button.disabled =
+        has || built.length >= slots || player.gold < entry.building.costGold;
+    }
+    panelRefs.garrisonCapMultiplier = 1 + buildingEffectsTotal.garrisonCap;
+
+    // Diplomacy rows.
+    const allyCount = countAllies(snapshot, myPlayerId);
+    for (const [otherId, ref] of panelRefs.diplomacy ?? []) {
+      const relation = getRelation(snapshot, myPlayerId, otherId);
+      const label = relationLabel(snapshot, myPlayerId, otherId);
+      ref.info.textContent = `${ref.player.name} · ${label}`;
+      const isAlly = relation?.status === 'ally';
+      const truceActive =
+        relation?.status === 'truce' && snapshot.tick < (relation.untilTick ?? 0);
+      ref.breakButton.style.display = isAlly ? '' : 'none';
+      ref.allyButton.style.display = isAlly ? 'none' : '';
+      ref.truceButton.style.display = isAlly || truceActive ? 'none' : '';
+      ref.allyButton.disabled =
+        allyCount >= (balance.diplomacy?.maxAllies ?? 2) ||
+        isBlocked(snapshot, myPlayerId, otherId) ||
+        Boolean(relation);
+      ref.truceButton.disabled = Boolean(relation);
+    }
+
+    const incoming = (snapshot.diplomacyRequests ?? []).filter(
+      (/** @type {any} */ request) => request.to === myPlayerId,
+    );
+    const signature = incoming
+      .map((/** @type {any} */ request) => `${request.id}:${request.kind}`)
+      .join(',');
+    if (signature !== panelRefs.requestsSignature) {
+      panelRefs.requestsSignature = signature;
+      panelRefs.requestsList.replaceChildren();
+      for (const request of incoming) {
+        const row = createElement('div', 'diplomacy-request');
+        const from = snapshot.players[request.from];
+        row.append(
+          createElement(
+            'span',
+            'diplomacy-info',
+            `${from?.name ?? '玩家'} 请求${request.kind === 'ally' ? '结盟' : '停战'}`,
+          ),
+        );
+        const actions = createElement('div', 'diplomacy-actions');
+        const accept = createElement('button', '', '接受');
+        accept.addEventListener('click', () => {
+          send({
+            type: 'command',
+            command: { type: 'diplomacy', action: 'accept', requestId: request.id },
+          });
+        });
+        const decline = createElement('button', '', '拒绝');
+        decline.addEventListener('click', () => {
+          send({
+            type: 'command',
+            command: { type: 'diplomacy', action: 'decline', requestId: request.id },
+          });
+        });
+        actions.append(accept, decline);
+        row.append(actions);
+        panelRefs.requestsList.append(row);
+      }
     }
   }
 
@@ -672,6 +841,9 @@ canvas.addEventListener('pointermove', (event) => {
         const attackerTech = playerTech(myPlayerId);
         const defenderTech =
           targetState.owner === null ? {} : playerTech(targetState.owner);
+        const defenderBuildings = buildingEffects(balance, {
+          buildings: targetState.buildings ?? [],
+        });
         dispatchOdds = Math.round(
           estimateBattle(
             sent,
@@ -684,7 +856,7 @@ canvas.addEventListener('pointermove', (event) => {
             balance,
             {
               attackerAttack: attackerTech.attack,
-              defenderDefense: defenderTech.defense,
+              defenderDefense: defenderTech.defense + defenderBuildings.defense,
               siegeBonus: attackerTech.siege,
             },
           ).odds * 100,

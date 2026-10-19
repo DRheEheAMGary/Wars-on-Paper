@@ -6,6 +6,20 @@
 import { levelConfig } from './economy.js';
 import { checkResearch, techEffects } from './tech.js';
 import {
+  buildingById,
+  buildingEffects,
+  buildingSlotsLeft,
+} from './buildings.js';
+import {
+  countAllies,
+  getRelation,
+  isBlocked,
+  isFriendly,
+  relationKey,
+  removeRelation,
+  setRelation,
+} from './diplomacy.js';
+import {
   ensureCityUnits,
   splitUnits,
   syncCityGarrison,
@@ -87,7 +101,8 @@ export function applyCommand(state, balance, command) {
     ensureCityUnits(city);
     if (player.gold < gold) return { ok: false, error: '金币不足' };
     if (city.population < population) return { ok: false, error: '人口不足' };
-    if (totalUnits(city.units) + batch > config.garrisonCap) {
+    const capMultiplier = 1 + buildingEffects(balance, city).garrisonCap;
+    if (totalUnits(city.units) + batch > config.garrisonCap * capMultiplier) {
       return { ok: false, error: '驻军已满' };
     }
     player.gold -= gold;
@@ -133,6 +148,9 @@ export function applyCommand(state, balance, command) {
 
     const targetOwned = to.owner === player.id;
     if (!targetOwned) {
+      if (isFriendly(state, player.id, to.owner)) {
+        return { ok: false, error: '不能攻击盟友或停战中的玩家' };
+      }
       const landRoute = from.neighbors.includes(to.id);
       const seaRoute = (from.seaNeighbors ?? []).includes(to.id);
       if (!landRoute && !seaRoute) {
@@ -185,6 +203,128 @@ export function applyCommand(state, balance, command) {
     });
     state.nextArmyId += 1;
     return { ok: true, sea };
+  }
+
+  if (command.type === 'build') {
+    const city = state.cities[command.cityId];
+    if (!city || city.owner !== player.id) return { ok: false, error: '城市不属于你' };
+    const building = buildingById(balance, command.buildingId);
+    if (!building) return { ok: false, error: '未知建筑' };
+    city.buildings = city.buildings ?? [];
+    if (city.buildings.includes(building.id)) {
+      return { ok: false, error: '该建筑已建造' };
+    }
+    if (buildingSlotsLeft(balance, city) <= 0) {
+      return { ok: false, error: '建筑槽已满' };
+    }
+    if (player.gold < building.costGold) return { ok: false, error: '金币不足' };
+    player.gold -= building.costGold;
+    city.buildings.push(building.id);
+    return { ok: true };
+  }
+
+  if (command.type === 'diplomacy') {
+    const config = balance.diplomacy ?? {};
+    const action = command.action;
+
+    if (action === 'accept' || action === 'decline') {
+      const requests = state.diplomacyRequests ?? [];
+      const index = requests.findIndex(
+        (/** @type {any} */ request) =>
+          request.id === command.requestId && request.to === player.id,
+      );
+      if (index < 0) return { ok: false, error: '请求不存在或已过期' };
+      const [request] = requests.splice(index, 1);
+      if (action === 'decline') return { ok: true };
+      if (
+        request.kind === 'ally' &&
+        countAllies(state, player.id) >= (config.maxAllies ?? 2)
+      ) {
+        return { ok: false, error: '盟友已满' };
+      }
+      if (request.kind === 'ally') {
+        setRelation(state, request.from, request.to, 'ally');
+      } else {
+        setRelation(
+          state,
+          request.from,
+          request.to,
+          'truce',
+          state.tick + (config.truceSeconds ?? 60) * 10,
+        );
+      }
+      state.events.push({
+        type: 'diplomacy',
+        kind: request.kind,
+        a: request.from,
+        b: request.to,
+        status: request.kind === 'ally' ? 'ally' : 'truce',
+      });
+      return { ok: true };
+    }
+
+    const targetId = Number(command.targetId);
+    const target = state.players[targetId];
+    if (!target || targetId === player.id) return { ok: false, error: '目标玩家无效' };
+
+    if (action === 'break') {
+      const relation = getRelation(state, player.id, targetId);
+      if (!relation || relation.status !== 'ally') {
+        return { ok: false, error: '你们不是盟友' };
+      }
+      removeRelation(state, player.id, targetId);
+      player.betrayalUntil = state.tick + (config.betraySeconds ?? 60) * 10;
+      state.diplomacyBlock = state.diplomacyBlock ?? {};
+      state.diplomacyBlock[relationKey(player.id, targetId)] =
+        state.tick + (config.betraySeconds ?? 60) * 10;
+      state.events.push({
+        type: 'diplomacy',
+        kind: 'break',
+        a: player.id,
+        b: targetId,
+        status: 'war',
+      });
+      return { ok: true };
+    }
+
+    if (action !== 'ally' && action !== 'truce') {
+      return { ok: false, error: '未知外交操作' };
+    }
+    if (isFriendly(state, player.id, targetId)) {
+      return { ok: false, error: '你们已经结盟或停战' };
+    }
+    if (isBlocked(state, player.id, targetId)) {
+      return { ok: false, error: '背叛冷却中，暂时不能结盟' };
+    }
+    if (action === 'ally' && countAllies(state, player.id) >= (config.maxAllies ?? 2)) {
+      return { ok: false, error: '盟友已满' };
+    }
+    state.diplomacyRequests = state.diplomacyRequests ?? [];
+    if (
+      state.diplomacyRequests.some(
+        (/** @type {any} */ request) =>
+          request.from === player.id &&
+          request.to === targetId &&
+          request.kind === action,
+      )
+    ) {
+      return { ok: false, error: '已经发出过相同请求' };
+    }
+    state.diplomacyRequests.push({
+      id: state.nextRequestId,
+      from: player.id,
+      to: targetId,
+      kind: action,
+      createdTick: state.tick,
+    });
+    state.nextRequestId += 1;
+    state.events.push({
+      type: 'diplomacyRequest',
+      from: player.id,
+      to: targetId,
+      kind: action,
+    });
+    return { ok: true };
   }
 
   return { ok: false, error: '未知指令' };
