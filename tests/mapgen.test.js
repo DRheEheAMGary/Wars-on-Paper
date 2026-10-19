@@ -49,18 +49,59 @@ test('land territories do not overlap and ocean exists around them', () => {
   assert.ok(oceanPoints > 50, `only ${oceanPoints} ocean sample points`);
 });
 
-test('the continent is one connected landmass', () => {
-  const visited = new Set([0]);
-  const queue = [0];
-  while (queue.length > 0) {
-    const id = /** @type {number} */ (queue.pop());
-    for (const neighbourId of MAP.cities[id].neighbors) {
-      if (visited.has(neighbourId)) continue;
-      visited.add(neighbourId);
-      queue.push(neighbourId);
+/** @param {import('../src/shared/mapgen.js').GameMap} map */
+function groupByContinent(map) {
+  /** @type {Map<number, import('../src/shared/mapgen.js').MapCity[]>} */
+  const groups = new Map();
+  for (const city of map.cities) {
+    const list = groups.get(city.continent) ?? [];
+    list.push(city);
+    groups.set(city.continent, list);
+  }
+  return groups;
+}
+
+/**
+ * @param {import('../src/shared/mapgen.js').GameMap} map
+ * @param {import('../src/shared/mapgen.js').MapCity[]} cities
+ */
+function assertConnected(map, cities) {
+  const members = new Set(cities.map((city) => city.id));
+  const seen = new Set([cities[0].id]);
+  const stack = [cities[0].id];
+  while (stack.length > 0) {
+    const id = /** @type {number} */ (stack.pop());
+    for (const neighbourId of map.cities[id].neighbors) {
+      if (!members.has(neighbourId) || seen.has(neighbourId)) continue;
+      seen.add(neighbourId);
+      stack.push(neighbourId);
     }
   }
-  assert.equal(visited.size, MAP.cities.length);
+  assert.equal(seen.size, cities.length);
+}
+
+test('the map has several connected continents and no lakes', () => {
+  assert.ok(MAP.meta.continentCount >= 2);
+  assert.equal(MAP.meta.continentCount, MAP.meta.continentSizes.length);
+  assert.equal(
+    MAP.meta.continentSizes.reduce((sum, size) => sum + size, 0),
+    MAP.cities.length,
+  );
+  assert.equal(MAP.meta.lakeCount, 0);
+
+  const groups = groupByContinent(MAP);
+  assert.equal(groups.size, MAP.meta.continentCount);
+  for (const cities of groups.values()) {
+    assert.ok(cities.length > 0);
+    assertConnected(MAP, cities);
+    // Continents must not touch each other, otherwise they would be one.
+    const members = new Set(cities.map((city) => city.id));
+    for (const city of cities) {
+      for (const neighbourId of city.neighbors) {
+        assert.ok(members.has(neighbourId), 'continents are adjacent');
+      }
+    }
+  }
 });
 
 test('adjacency is symmetric and cities have neighbours', () => {
@@ -135,21 +176,15 @@ test('single-city maps are valid', () => {
   assert.ok(single.meta.landAreaFraction > 0 && single.meta.landAreaFraction < 1);
 });
 
-test('large maps stay connected and non-overlapping', () => {
+test('large maps keep every continent connected and lake-free', () => {
   const large = generateMap({ seed: 11, cityCount: 240 });
   assert.equal(large.cities.length, 240);
+  assert.ok(large.meta.continentCount >= 2);
+  assert.equal(large.meta.lakeCount, 0);
 
-  const visited = new Set([0]);
-  const queue = [0];
-  while (queue.length > 0) {
-    const id = /** @type {number} */ (queue.pop());
-    for (const neighbourId of large.cities[id].neighbors) {
-      if (visited.has(neighbourId)) continue;
-      visited.add(neighbourId);
-      queue.push(neighbourId);
-    }
+  for (const cities of groupByContinent(large).values()) {
+    assertConnected(large, cities);
   }
-  assert.equal(visited.size, large.cities.length);
 
   const rng = createRng('large-sample');
   for (let i = 0; i < 300; i += 1) {
