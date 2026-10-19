@@ -151,7 +151,7 @@ function checkEnd(state, balance) {
     (/** @type {any} */ city) => city.special,
   ).length;
   const specialRequired = Math.ceil(
-    specialTotal * (balance.objectives?.requiredFraction ?? 0.67),
+    specialTotal * (state.objectiveFraction ?? balance.objectives?.requiredFraction ?? 0.67),
   );
 
   if (state.multiplayer) {

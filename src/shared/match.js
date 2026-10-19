@@ -70,7 +70,7 @@ function createStartingCommander(balance, seed, playerIndex, cityId) {
  * Create a deterministic match state with a human player and AI opponents.
  * @param {import('./mapgen.js').GameMap} map
  * @param {any} balance
- * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any, mode?: 'timed' | 'endless' }} [options]
+ * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any, mode?: 'timed' | 'endless', scenario?: string }} [options]
  * @returns {any}
  */
 export function createMatch(map, balance, options = {}) {
@@ -164,12 +164,30 @@ export function createMatch(map, balance, options = {}) {
     }
   });
 
+  const scenarioConfig =
+    balance.scenarios?.[options.scenario ?? 'classic'] ?? null;
+  if (scenarioConfig?.startGoldMultiplier) {
+    for (const player of players) {
+      player.gold = Math.round(
+        player.gold * scenarioConfig.startGoldMultiplier,
+      );
+    }
+  }
+
   return {
     seed,
     tick: 0,
     phase: 'playing',
     mode: options.mode ?? 'timed',
-    matchSeconds: options.matchSeconds ?? balance.matchSeconds,
+    scenario: options.scenario ?? 'classic',
+    objectiveFraction:
+      balance.scenarios?.[options.scenario ?? 'classic']?.objectiveFraction ??
+      balance.objectives?.requiredFraction ??
+      0.67,
+    matchSeconds:
+      options.matchSeconds ??
+      balance.scenarios?.[options.scenario ?? 'classic']?.matchSeconds ??
+      balance.matchSeconds,
     aiProfile: options.aiProfile ?? null,
     wave: 0,
     nextEventTick: Math.round(((balance.worldEvents?.firstDelaySeconds ?? 75) * 1000) / balance.tickMs),
@@ -236,7 +254,7 @@ export function snapshot(state) {
       .map((/** @type {any} */ city) => ({ cityId: city.id, type: city.special })),
     specialRequired: Math.ceil(
       ((state.cities ?? []).filter((/** @type {any} */ city) => city.special).length) *
-        0.67,
+        (state.objectiveFraction ?? 0.67),
     ),
     diplomacy: { ...(state.diplomacy ?? {}) },
     diplomacyRequests: [...(state.diplomacyRequests ?? [])],

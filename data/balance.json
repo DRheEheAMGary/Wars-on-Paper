@@ -593,5 +593,24 @@
     "coalitionLead": 4,
     "coalitionScoreRatio": 1.5,
     "catchUpGold": 0.25
+  },
+  "scenarios": {
+    "classic": {
+      "name": "经典争霸",
+      "description": "标准规则"
+    },
+    "rush": {
+      "name": "资源争夺",
+      "description": "目标据点要求降至 50%，开局金币 +20%",
+      "objectiveFraction": 0.5,
+      "startGoldMultiplier": 1.2
+    },
+    "blitz": {
+      "name": "闪电战",
+      "description": "5 分钟对局，开局金币 +50%",
+      "objectiveFraction": 0.67,
+      "startGoldMultiplier": 1.5,
+      "matchSeconds": 300
+    }
   }
 }

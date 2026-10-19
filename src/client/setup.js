@@ -15,6 +15,7 @@ const aiSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setu
 const difficultyGroup = /** @type {HTMLElement} */ (document.getElementById('setup-difficulty'));
 const minutesSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-minutes'));
 const modeSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-mode'));
+const scenarioSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-scenario'));
 const form = /** @type {HTMLFormElement} */ (document.getElementById('setup-form'));
 const randomSeedButton = /** @type {HTMLButtonElement} */ (document.getElementById('setup-random-seed'));
 
@@ -101,6 +102,17 @@ function populate(balance) {
     minuteValues.includes(requestedMinutes) ? requestedMinutes : DEFAULT_MINUTES,
   );
 
+  for (const [id, scenario] of Object.entries(balance?.scenarios ?? { classic: { name: '经典争霸' } })) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = scenario.name ?? id;
+    option.title = scenario.description ?? '';
+    scenarioSelect.append(option);
+  }
+  const requestedScenario = params.get('scenario') ?? '';
+  scenarioSelect.value = balance?.scenarios?.[requestedScenario]
+    ? requestedScenario
+    : 'classic';
   modeSelect.value = params.get('mode') === 'endless' ? 'endless' : 'timed';
   syncMode();
 }
@@ -141,6 +153,7 @@ form.addEventListener('submit', (event) => {
     difficulty,
     minutes: String(minutes),
     mode: modeSelect.value,
+    scenario: scenarioSelect.value,
   });
   window.location.href = `/game.html?${query.toString()}`;
 });
