@@ -71,12 +71,8 @@ const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
 const roomCode = params.get('room') ?? '';
 const isMultiplayer = Boolean(roomCode);
 const gameMode = params.get('mode') === 'endless' ? 'endless' : 'timed';
+
 const tutorialMode = params.get('tutorial') === '1';
-const effectiveCityCount = tutorialMode ? 40 : cityCount;
-const effectiveSeed = tutorialMode ? 7777 : seed;
-const effectiveAICount = tutorialMode ? 0 : aiCount;
-const effectiveMatchSeconds = tutorialMode ? 1800 : matchSeconds;
-const effectiveMode = tutorialMode ? 'timed' : gameMode;
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
@@ -101,6 +97,11 @@ const matchSeconds =
   Number.isFinite(requestedMinutes) && requestedMinutes >= 3 && requestedMinutes <= 30
     ? Math.round(requestedMinutes * 60)
     : balance.matchSeconds;
+const effectiveCityCount = tutorialMode ? 40 : cityCount;
+const effectiveSeed = tutorialMode ? 7777 : seed;
+const effectiveAICount = tutorialMode ? 0 : aiCount;
+const effectiveMatchSeconds = tutorialMode ? 1800 : matchSeconds;
+const effectiveMode = tutorialMode ? 'timed' : gameMode;
 const startQuery = new URLSearchParams({
   seed: String(seed),
   cities: String(cityCount),

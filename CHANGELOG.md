@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-10-19
+
+### Fixed
+
+- 单人模式启动报错 `Cannot access 'aiCount' before initialization`：教程/剧本变量声明顺序错误，普通对局页面无法初始化
+- 调整初始化顺序后单人开局正常（实测 phase=playing、金币 316、无控制台错误）
+
 ## [1.10.1] - 2026-10-19
 
 ### Fixed
