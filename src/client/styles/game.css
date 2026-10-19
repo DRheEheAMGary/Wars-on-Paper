@@ -73,8 +73,8 @@ body.game-page {
   z-index: 20;
   left: 18px;
   bottom: 18px;
-  width: 300px;
-  max-height: 62vh;
+  width: 330px;
+  max-height: 78vh;
   overflow-y: auto;
   padding: 16px;
   border: 1px solid var(--line);
@@ -318,4 +318,104 @@ body.game-page {
 .result-row.me {
   color: var(--ink);
   font-weight: 600;
+}
+
+.neighbour-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.neighbour-row:first-child {
+  border-top: none;
+}
+
+.neighbour-info {
+  grid-column: 1 / -1;
+}
+
+.dispatch {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dispatch-range {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 2px;
+  margin: 6px 0;
+  border-radius: 0;
+  background: var(--line-strong);
+  outline: none;
+}
+
+.dispatch-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+}
+
+.dispatch-range::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+}
+
+.dispatch-range::-moz-range-track {
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.dispatch-count {
+  min-width: 26px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dispatch-odds {
+  min-width: 40px;
+  text-align: right;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dispatch button {
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.dispatch button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.dispatch button:disabled {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.neighbour-row.is-target {
+  outline: 1px dashed var(--ink);
+  outline-offset: 3px;
 }

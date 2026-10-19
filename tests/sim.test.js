@@ -131,6 +131,32 @@ test('match ends in victory after conquering every city', () => {
   assert.ok(state.result.score > 0);
 });
 
+test('troops can be transferred between your own cities', () => {
+  const state = createMatch(map, balance, { seed: 7, aiCount: 0 });
+  const from = state.cities.find((candidate) => candidate.owner === 0);
+  const toId = map.cities[from.id].neighbors.find(
+    (neighbour) => state.cities[neighbour].owner === 0,
+  );
+  assert.ok(toId !== undefined);
+  const fromBefore = from.garrison;
+  const toBefore = state.cities[toId].garrison;
+
+  const result = applyCommand(state, balance, {
+    type: 'deploy',
+    fromCity: from.id,
+    toCity: toId,
+    soldiers: 20,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(from.garrison, fromBefore - 20);
+
+  for (let i = 0; i < 120 && state.armies.length > 0; i += 1) {
+    step(state, balance, []);
+  }
+  assert.equal(state.cities[toId].garrison, toBefore + 20);
+  assert.equal(state.cities[from.id].garrison, fromBefore - 20);
+});
+
 test('failed attacks wipe the attacker instead of retreating', () => {
   const state = makeState();
   const from = state.cities.find((candidate) => candidate.owner === 0);

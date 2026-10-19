@@ -177,6 +177,11 @@ function updateHoverAt(screenX, screenY) {
   }
 }
 
+function militaryMultiplier() {
+  const player = snapshot?.players[0];
+  return 1 + (player?.tech?.military ? balance.researchEffects.military : 0);
+}
+
 function renderPanel() {
   if (!snapshot || selectedId < 0 || !map.cities[selectedId]) {
     hidePanel();
@@ -250,7 +255,7 @@ function buildPanel() {
   }
 
   panelElement.append(
-    createElement('p', 'panel-label', owned ? '可行动目标' : '相邻城市'),
+    createElement('p', 'panel-label', owned ? '可行动目标 · 拖动滑条选数量' : '相邻城市'),
   );
 
   const list = createElement('div', 'neighbour-list');
@@ -272,48 +277,69 @@ function buildPanel() {
     };
 
     if (owned) {
-      const neighbourState = snapshot.cities[neighbourId];
-      if (neighbourState.owner === 0) {
-        const button = createElement('button', '', '增援');
-        button.addEventListener('click', () => {
-          worker.postMessage({
-            type: 'command',
-            command: { type: 'deploy', fromCity: selectedId, toCity: neighbourId },
-          });
-          showToast(`增援 ${neighbour.name}`);
+      const dispatch = createElement('div', 'dispatch');
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'dispatch-range';
+      slider.min = '1';
+      const currentGarrison = snapshot.cities[selectedId].garrison;
+      slider.max = String(Math.max(1, currentGarrison));
+      slider.value = String(Math.max(1, Math.floor(currentGarrison / 2)));
+
+      const count = createElement('span', 'dispatch-count', slider.value);
+      const odds = createElement('span', 'dispatch-odds', '');
+      const action = createElement('button', '', '');
+
+      const refresh = () => {
+        const value = Number(slider.value);
+        count.textContent = String(value);
+        const targetState = snapshot.cities[neighbourId];
+        if (targetState.owner === 0) {
+          odds.textContent = '';
+          return;
+        }
+        const targetInfo = {
+          level: targetState.level,
+          garrison: targetState.garrison,
+          terrain: neighbour.terrain,
+        };
+        const chance = Math.round(
+          estimateBattle(value, targetInfo, balance, militaryMultiplier()).odds * 100,
+        );
+        odds.textContent = `${chance}%`;
+      };
+      slider.addEventListener('input', refresh);
+
+      action.addEventListener('click', () => {
+        const current = snapshot.cities[selectedId];
+        if (!current || current.garrison <= 0) return;
+        const soldiers = Math.max(
+          1,
+          Math.min(Number(slider.value) || 1, current.garrison),
+        );
+        const isOwn = snapshot.cities[neighbourId].owner === 0;
+        worker.postMessage({
+          type: 'command',
+          command: {
+            type: 'deploy',
+            fromCity: selectedId,
+            toCity: neighbourId,
+            soldiers,
+          },
         });
-        row.append(button);
-        ref.reinforceButton = button;
-      } else {
-        const actions = createElement('div', 'neighbour-actions');
-        const halfButton = createElement('button', '');
-        halfButton.addEventListener('click', () => {
-          const current = snapshot.cities[selectedId];
-          const soldiers = Math.max(1, Math.floor(current.garrison / 2));
-          worker.postMessage({
-            type: 'command',
-            command: {
-              type: 'deploy',
-              fromCity: selectedId,
-              toCity: neighbourId,
-              soldiers,
-            },
-          });
-          showToast(`派兵前往 ${neighbour.name}`);
-        });
-        const allButton = createElement('button', '');
-        allButton.addEventListener('click', () => {
-          worker.postMessage({
-            type: 'command',
-            command: { type: 'deploy', fromCity: selectedId, toCity: neighbourId },
-          });
-          showToast(`派兵前往 ${neighbour.name}`);
-        });
-        actions.append(halfButton, allButton);
-        row.append(actions);
-        ref.halfButton = halfButton;
-        ref.allButton = allButton;
-      }
+        showToast(
+          `${isOwn ? '调兵至' : '派兵前往'} ${neighbour.name}（${soldiers}）`,
+        );
+      });
+
+      dispatch.append(slider, count, odds, action);
+      row.append(dispatch);
+      ref.row = row;
+      ref.slider = slider;
+      ref.count = count;
+      ref.odds = odds;
+      ref.action = action;
+      refresh();
     }
 
     list.append(row);
@@ -373,10 +399,7 @@ function updatePanel() {
     }
   }
 
-  const militaryMultiplier =
-    1 + (player.tech?.military ? balance.researchEffects.military : 0);
-  const garrison = cityState.garrison;
-  const half = Math.max(1, Math.floor(garrison / 2));
+  const military = militaryMultiplier();
 
   for (const [neighbourId, ref] of panelRefs.rows) {
     const neighbourState = snapshot.cities[neighbourId];
@@ -390,20 +413,31 @@ function updatePanel() {
       `${ref.neighbour.name}${ref.sea ? ' · 渡海' : ''} · ${ownerText} · ` +
       `守军 ${neighbourState.garrison}`;
 
-    if (ref.halfButton && ref.allButton) {
+    if (!ref.slider) continue;
+    const garrison = cityState.garrison;
+    const maxSoldiers = Math.max(1, garrison);
+    ref.slider.max = String(maxSoldiers);
+    let value = Number(ref.slider.value);
+    if (!Number.isFinite(value) || value < 1) value = 1;
+    if (value > garrison) value = Math.max(1, garrison);
+    ref.slider.value = String(value);
+    ref.count.textContent = String(garrison <= 0 ? 0 : value);
+
+    const isOwn = neighbourState.owner === 0;
+    ref.action.textContent = isOwn ? '调兵' : '派兵';
+    ref.action.disabled = garrison <= 0;
+    if (isOwn) {
+      ref.odds.textContent = '';
+    } else {
       const targetInfo = {
         level: neighbourState.level,
         garrison: neighbourState.garrison,
         terrain: ref.neighbour.terrain,
       };
-      const halfOdds = Math.round(
-        estimateBattle(half, targetInfo, balance, militaryMultiplier).odds * 100,
+      const chance = Math.round(
+        estimateBattle(value, targetInfo, balance, military).odds * 100,
       );
-      const allOdds = Math.round(
-        estimateBattle(garrison, targetInfo, balance, militaryMultiplier).odds * 100,
-      );
-      ref.halfButton.textContent = `半 ${halfOdds}%`;
-      ref.allButton.textContent = `全 ${allOdds}%`;
+      ref.odds.textContent = `${chance}%`;
     }
   }
 }
@@ -516,20 +550,21 @@ function endDrag(event) {
     return;
   }
 
-  const targetState = snapshot.cities[id];
   if (
     selectedId >= 0 &&
     selectedId !== id &&
-    targetState.owner !== 0 &&
     snapshot.cities[selectedId].owner === 0 &&
-    map.cities[selectedId].neighbors.includes(id)
+    (map.cities[selectedId].neighbors.includes(id) ||
+      (map.cities[selectedId].seaNeighbors ?? []).includes(id))
   ) {
-    worker.postMessage({
-      type: 'command',
-      command: { type: 'deploy', fromCity: selectedId, toCity: id },
-    });
-    showToast(`派兵前往 ${map.cities[id].name}`);
-    return;
+    const ref = panelRefs?.rows.get(id);
+    if (ref) {
+      ref.row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      ref.slider?.focus();
+      ref.row.classList.add('is-target');
+      window.setTimeout(() => ref.row.classList.remove('is-target'), 1000);
+      return;
+    }
   }
 
   selectedId = id;
