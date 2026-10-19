@@ -102,3 +102,17 @@ export function createRng(seed) {
     },
   };
 }
+
+/**
+ * Advance an in-state PRNG and return a float in [0, 1).
+ * The owning object must contain a `rngState` uint32 field.
+ * @param {{ rngState: number }} owner
+ * @returns {number}
+ */
+export function nextStateRandom(owner) {
+  owner.rngState = (owner.rngState + 0x6d2b79f5) >>> 0;
+  let t = owner.rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}

@@ -24,7 +24,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
   button.addEventListener('click', () => {
     const action = button.getAttribute('data-action');
     if (action === 'single') {
-      showNotice('单机模式将在 M2–M3 开放。当前是 M0 工程骨架。');
+      window.location.href = '/game.html';
     } else if (action === 'help') {
       showNotice('目标：占领城市、扩张领土。单机可暂停，多人 16–32 人同图乱斗。');
     }

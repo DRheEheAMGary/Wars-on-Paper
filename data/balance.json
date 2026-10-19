@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "tickMs": 100,
+  "matchSeconds": 720,
+  "startGold": 300,
+  "startFood": 200,
+  "startPopulation": 60,
+  "startSoldiers": 40,
+  "neutralGarrison": 30,
+  "spawnCities": 3,
+  "recruitBatch": 10,
+  "soldierCostGold": 6,
+  "soldierCostPopulation": 2,
+  "soldierTravelSeconds": 8,
+  "soldierFoodUpkeepPerSecond": 0.005,
+  "populationGrowthPerSecond": 1.5,
+  "starvationLossPerSecond": 0.01,
+  "captureLevelLoss": 1,
+  "scorePerCity": 100,
+  "scorePerKill": 0.2,
+  "soldierAttack": 10,
+  "soldierDefense": 10,
+  "combat": {
+    "casualtyFactor": 0.7,
+    "randomness": 0.1
+  },
+  "cityLevels": [
+    {
+      "level": 1,
+      "goldPerSecond": 2.0,
+      "foodPerSecond": 0.5,
+      "populationCap": 100,
+      "garrisonCap": 150,
+      "wall": 0.0,
+      "upgradeGold": 200,
+      "upgradeSeconds": 15
+    },
+    {
+      "level": 2,
+      "goldPerSecond": 3.0,
+      "foodPerSecond": 1.0,
+      "populationCap": 150,
+      "garrisonCap": 300,
+      "wall": 0.3,
+      "upgradeGold": 500,
+      "upgradeSeconds": 30
+    },
+    {
+      "level": 3,
+      "goldPerSecond": 4.5,
+      "foodPerSecond": 1.5,
+      "populationCap": 220,
+      "garrisonCap": 450,
+      "wall": 0.6,
+      "upgradeGold": 1200,
+      "upgradeSeconds": 45
+    },
+    {
+      "level": 4,
+      "goldPerSecond": 6.5,
+      "foodPerSecond": 2.0,
+      "populationCap": 300,
+      "garrisonCap": 700,
+      "wall": 0.9,
+      "upgradeGold": 2600,
+      "upgradeSeconds": 60
+    },
+    {
+      "level": 5,
+      "goldPerSecond": 9.0,
+      "foodPerSecond": 3.0,
+      "populationCap": 400,
+      "garrisonCap": 1000,
+      "wall": 1.2,
+      "upgradeGold": null,
+      "upgradeSeconds": null
+    }
+  ],
+  "terrain": {
+    "plains": { "attack": 1.0, "defense": 1.0 },
+    "forest": { "attack": 0.9, "defense": 1.15 },
+    "hills": { "attack": 0.85, "defense": 1.25 },
+    "mountain": { "attack": 0.7, "defense": 1.4 }
+  }
+}
