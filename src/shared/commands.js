@@ -10,6 +10,54 @@ import { levelConfig } from './economy.js';
  */
 
 /**
+ * Weighted shortest travel cost between two cities (land hop = 1, sea hop =
+ * seaTravelMultiplier). Used to move reinforcements between your own cities.
+ * @param {any} state
+ * @param {number} fromId
+ * @param {number} toId
+ * @param {any} balance
+ * @returns {number}
+ */
+function shortestTravelCost(state, fromId, toId, balance) {
+  /** @type {Map<number, number>} */
+  const costs = new Map([[fromId, 0]]);
+  /** @type {number[]} */
+  const queue = [fromId];
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    let bestIndex = 0;
+    for (let index = 1; index < queue.length; index += 1) {
+      if ((costs.get(queue[index]) ?? Infinity) < (costs.get(queue[bestIndex]) ?? Infinity)) {
+        bestIndex = index;
+      }
+    }
+    const current = /** @type {number} */ (queue.splice(bestIndex, 1)[0]);
+    if (visited.has(current)) continue;
+    visited.add(current);
+    if (current === toId) return costs.get(current) ?? 1;
+
+    const city = state.cities[current];
+    if (!city) continue;
+    for (const neighbour of city.neighbors) {
+      const next = (costs.get(current) ?? 0) + 1;
+      if (next < (costs.get(neighbour) ?? Infinity)) {
+        costs.set(neighbour, next);
+        queue.push(neighbour);
+      }
+    }
+    for (const neighbour of city.seaNeighbors ?? []) {
+      const next = (costs.get(current) ?? 0) + balance.seaTravelMultiplier;
+      if (next < (costs.get(neighbour) ?? Infinity)) {
+        costs.set(neighbour, next);
+        queue.push(neighbour);
+      }
+    }
+  }
+  return 2;
+}
+
+/**
  * @param {any} state
  * @param {any} balance
  * @param {any} command
@@ -70,9 +118,17 @@ export function applyCommand(state, balance, command) {
     if (!from || from.owner !== player.id) return { ok: false, error: '出发城市不属于你' };
     if (!to) return { ok: false, error: '目标城市无效' };
 
-    const landRoute = from.neighbors.includes(to.id);
-    const seaRoute = (from.seaNeighbors ?? []).includes(to.id);
-    if (!landRoute && !seaRoute) return { ok: false, error: '只能攻击相邻或可渡海的城市' };
+    if (to.id === from.id) return { ok: false, error: '不能派往同一座城市' };
+
+    const targetOwned = to.owner === player.id;
+    if (!targetOwned) {
+      // Attacks still require a land or sea border.
+      const landRoute = from.neighbors.includes(to.id);
+      const seaRoute = (from.seaNeighbors ?? []).includes(to.id);
+      if (!landRoute && !seaRoute) {
+        return { ok: false, error: '只能攻击相邻或可渡海的城市' };
+      }
+    }
 
     const soldiers = Math.min(
       Math.max(0, Math.floor(command.soldiers ?? from.garrison)),
@@ -83,10 +139,22 @@ export function applyCommand(state, balance, command) {
     const research = balance.researchEffects ?? {};
     const logistics = player.tech?.logistics ? 1 - research.logistics : 1;
     const baseTicks = Math.round((balance.soldierTravelSeconds * 1000) / balance.tickMs);
-    const travelTicks = Math.max(
-      1,
-      Math.round(baseTicks * (seaRoute ? balance.seaTravelMultiplier : 1) * logistics),
-    );
+
+    let travelTicks;
+    let sea = false;
+    if (targetOwned) {
+      // Reinforcements may travel between any of your own cities; travel time
+      // follows the shortest land/sea path.
+      const cost = shortestTravelCost(state, from.id, to.id, balance);
+      travelTicks = Math.max(1, Math.round(baseTicks * cost * logistics));
+    } else {
+      const landRoute = from.neighbors.includes(to.id);
+      sea = !landRoute;
+      travelTicks = Math.max(
+        1,
+        Math.round(baseTicks * (sea ? balance.seaTravelMultiplier : 1) * logistics),
+      );
+    }
 
     from.garrison -= soldiers;
     state.armies.push({
@@ -97,10 +165,10 @@ export function applyCommand(state, balance, command) {
       soldiers,
       departTick: state.tick,
       arriveTick: state.tick + travelTicks,
-      sea: !landRoute,
+      sea,
     });
     state.nextArmyId += 1;
-    return { ok: true, sea: !landRoute };
+    return { ok: true, sea };
   }
 
   return { ok: false, error: '未知指令' };

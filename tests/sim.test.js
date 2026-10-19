@@ -157,6 +157,52 @@ test('troops can be transferred between your own cities', () => {
   assert.equal(state.cities[from.id].garrison, fromBefore - 20);
 });
 
+test('reinforcements can travel to any of your cities, but attacks stay adjacent', () => {
+  const state = createMatch(map, balance, { seed: 7, aiCount: 0 });
+  const from = state.cities.find((candidate) => candidate.owner === 0);
+  assert.ok(from);
+
+  // Pick a city that is neither adjacent nor sea-linked, then make it ours.
+  const distant = state.cities.find(
+    (candidate) =>
+      candidate.id !== from.id &&
+      candidate.owner === null &&
+      !map.cities[from.id].neighbors.includes(candidate.id) &&
+      !(map.cities[from.id].seaNeighbors ?? []).includes(candidate.id),
+  );
+  assert.ok(distant);
+  distant.owner = 0;
+  distant.garrison = 10;
+
+  const transfer = applyCommand(state, balance, {
+    type: 'deploy',
+    fromCity: from.id,
+    toCity: distant.id,
+    soldiers: 10,
+  });
+  assert.equal(transfer.ok, true);
+  const army = state.armies.find((candidate) => candidate.toCity === distant.id);
+  assert.ok(army);
+  assert.ok(army.arriveTick - army.departTick > balance.soldierTravelSeconds * 10);
+
+  // The same distant city is still not attackable while neutral.
+  const neutral = state.cities.find(
+    (candidate) =>
+      candidate.owner === null &&
+      candidate.id !== from.id &&
+      !map.cities[from.id].neighbors.includes(candidate.id) &&
+      !(map.cities[from.id].seaNeighbors ?? []).includes(candidate.id),
+  );
+  assert.ok(neutral);
+  const attack = applyCommand(state, balance, {
+    type: 'deploy',
+    fromCity: from.id,
+    toCity: neutral.id,
+    soldiers: 5,
+  });
+  assert.equal(attack.ok, false);
+});
+
 test('failed attacks wipe the attacker instead of retreating', () => {
   const state = makeState();
   const from = state.cities.find((candidate) => candidate.owner === 0);

@@ -284,7 +284,7 @@ function buildPanel() {
       createElement(
         'p',
         'panel-sub',
-        '按住已选中的城市，拖到相邻或渡海城市派兵；拖到自己的城市即可调兵。',
+        '按住已选中的城市拖到目标：自己的城市可跨任意距离调兵；攻击其他城市仅限相邻或渡海。',
       ),
     );
     panelRefs.amountSlider = slider;
@@ -529,18 +529,20 @@ function dispatchTo(targetId) {
     return;
   }
   const source = map.cities[selectedId];
-  const landRoute = source.neighbors.includes(targetId);
-  const seaRoute = (source.seaNeighbors ?? []).includes(targetId);
-  if (!landRoute && !seaRoute) {
-    showToast('只能派往相邻或可渡海的城市');
-    return;
+  const isOwn = snapshot.cities[targetId].owner === 0;
+  if (!isOwn) {
+    const landRoute = source.neighbors.includes(targetId);
+    const seaRoute = (source.seaNeighbors ?? []).includes(targetId);
+    if (!landRoute && !seaRoute) {
+      showToast('只能攻击相邻或可渡海的城市');
+      return;
+    }
   }
   const sliderValue = Number(panelRefs?.amountSlider?.value);
   const soldiers = Math.max(
     1,
     Math.min(sliderValue || Math.ceil(current.garrison / 2), current.garrison),
   );
-  const isOwn = snapshot.cities[targetId].owner === 0;
   worker.postMessage({
     type: 'command',
     command: { type: 'deploy', fromCity: selectedId, toCity: targetId, soldiers },
