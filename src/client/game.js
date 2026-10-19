@@ -65,6 +65,9 @@ let toastTimer = 0;
 let drawQueued = false;
 
 const worker = new Worker('/src/client/game-worker.js', { type: 'module' });
+worker.onerror = (event) => {
+  showToast(`模拟器启动失败：${event.message || '未知错误'}`);
+};
 worker.postMessage({ type: 'init', config: { seed, cityCount }, balance });
 
 worker.onmessage = (event) => {
@@ -190,7 +193,7 @@ function renderPanel() {
       'p',
       'panel-sub',
       `Lv.${cityState.level} · 人口 ${cityState.population} · 驻军 ${cityState.garrison}` +
-        (owned ? '' : ' · 中立城市'),
+        (owned ? '' : ' · 中立城市（点击你自己的城市才能操作）'),
     ),
   );
 
@@ -522,6 +525,15 @@ mustElement('button-home').addEventListener('click', () => {
 mustElement('button-restart').addEventListener('click', () => {
   const nextSeed = Math.floor(Math.random() * 1_000_000);
   window.location.href = `/game.html?seed=${nextSeed}&cities=${cityCount}`;
+});
+
+// Surface unexpected errors instead of silently breaking every button.
+window.addEventListener('error', (event) => {
+  showToast(`页面错误：${event.message || '未知错误'}`);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  showToast(`页面错误：${reason?.message ?? String(reason)}`);
 });
 
 // Lightweight debug hook used by headless smoke tests; harmless in production.
