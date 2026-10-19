@@ -8,7 +8,7 @@
 
 ## 当前状态
 
-规划阶段。设计与开发计划见 [docs/PLAN.md](docs/PLAN.md)。
+规划阶段（v0.2：关键假设已确认，等待开工）。设计与开发计划见 [docs/PLAN.md](docs/PLAN.md)。
 
 ## 计划中的启动方式
 
