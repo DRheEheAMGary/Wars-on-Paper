@@ -1,0 +1,192 @@
+/* Map prototype page — white, minimal, no cards or shadows. */
+
+body.map-page {
+  overflow: hidden;
+  background: #ffffff;
+}
+
+#map {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+  cursor: grab;
+}
+
+#map.is-dragging {
+  cursor: grabbing;
+}
+
+.panel {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 268px;
+  padding: 18px 18px 16px;
+  border: 1px solid #e6e6e6;
+  background: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.panel-title {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.field label {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.field input,
+.field select {
+  width: 124px;
+  padding: 6px 8px;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.78rem;
+  border-radius: 0;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+#regenerate {
+  width: 100%;
+  margin: 8px 0 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+#regenerate:hover {
+  background: #333333;
+  border-color: #333333;
+}
+
+.toggles {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.toggles input {
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.stats {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+}
+
+.render-time {
+  margin: 0 0 8px;
+  color: var(--ink-faint);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+}
+
+.hover {
+  min-height: 2.6em;
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  line-height: 1.7;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+}
+
+.terrain-plains {
+  background: #f7f5ef;
+}
+
+.terrain-forest {
+  background: #eaf1e5;
+}
+
+.terrain-hills {
+  background: #f3ecdf;
+}
+
+.terrain-mountain {
+  background: #e7e3dc;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--ink-faint);
+  font-size: 0.7rem;
+  line-height: 1.7;
+}
+
+.back {
+  color: var(--ink);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.back:hover {
+  border-color: var(--ink);
+}

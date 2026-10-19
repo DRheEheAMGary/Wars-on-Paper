@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Wars on Paper — 地图生成原型" />
+    <meta name="color-scheme" content="light" />
+    <title>地图原型 · Wars on Paper</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff'/%3E%3Cpath d='M18 74 L42 24 L54 56 L82 30 L72 78 Z' fill='%23e0492f'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/client/styles/main.css" />
+    <link rel="stylesheet" href="/src/client/styles/mapdebug.css" />
+  </head>
+  <body class="map-page">
+    <canvas id="map" aria-label="生成地图预览"></canvas>
+
+    <aside class="panel">
+      <h1 class="panel-title">地图原型</h1>
+
+      <div class="field">
+        <label for="seed">种子</label>
+        <input id="seed" type="number" min="1" step="1" value="1" />
+      </div>
+
+      <div class="field">
+        <label for="cities">城市数</label>
+        <select id="cities">
+          <option value="60">60</option>
+          <option value="100">100</option>
+          <option value="160" selected>160</option>
+          <option value="240">240</option>
+          <option value="360">360</option>
+        </select>
+      </div>
+
+      <button id="regenerate" type="button">重新生成</button>
+
+      <div class="toggles">
+        <label><input id="toggle-adjacency" type="checkbox" /> 邻接线</label>
+        <label><input id="toggle-names" type="checkbox" checked /> 城市名</label>
+      </div>
+
+      <p id="stats" class="stats"></p>
+      <p id="render-time" class="render-time"></p>
+      <p id="hover" class="hover"></p>
+
+      <div class="legend" aria-label="地形图例">
+        <span><i class="swatch terrain-plains"></i>平原</span>
+        <span><i class="swatch terrain-forest"></i>森林</span>
+        <span><i class="swatch terrain-hills"></i>丘陵</span>
+        <span><i class="swatch terrain-mountain"></i>山地</span>
+      </div>
+
+      <p class="hint">拖拽平移 · 滚轮缩放 · 双击复位</p>
+      <a class="back" href="/">← 返回主菜单</a>
+    </aside>
+
+    <script type="module" src="/src/client/mapdebug.js"></script>
+  </body>
+</html>
