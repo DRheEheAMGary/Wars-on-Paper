@@ -22,7 +22,8 @@ const FONT_STACK =
   "'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif";
 
 const BORDER_COLOR = 'rgba(17, 17, 17, 0.10)';
-const OUTLINE_COLOR = '#1b1b1b';
+const WORLD_BORDER_COLOR = '#1b1b1b';
+const OCEAN_FILL = '#e7f0f5';
 const ACCENT = '#e0492f';
 const LABEL_MIN_ZOOM = 0.5;
 
@@ -99,6 +100,10 @@ export function drawMap(ctx, map, camera, options) {
   ctx.scale(zoom, zoom);
   ctx.translate(-camera.centerX, -camera.centerY);
 
+  // Ocean fills the rectangular world; land territories are drawn on top.
+  ctx.fillStyle = OCEAN_FILL;
+  ctx.fillRect(0, 0, map.width, map.height);
+
   for (const city of map.cities) {
     tracePolygon(ctx, city.polygon);
     ctx.fillStyle = TERRAIN_FILLS[city.terrain];
@@ -112,10 +117,10 @@ export function drawMap(ctx, map, camera, options) {
     ctx.stroke();
   }
 
-  tracePolygon(ctx, map.outline);
-  ctx.strokeStyle = OUTLINE_COLOR;
+  // Rectangular map frame.
+  ctx.strokeStyle = WORLD_BORDER_COLOR;
   ctx.lineWidth = screen(1.5);
-  ctx.stroke();
+  ctx.strokeRect(0, 0, map.width, map.height);
 
   if (showAdjacency) {
     ctx.save();

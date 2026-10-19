@@ -152,6 +152,62 @@ export function chaikin(points, iterations = 1) {
 }
 
 /**
+ * Distance from a point to a line segment.
+ * @param {Point} point
+ * @param {Point} a
+ * @param {Point} b
+ * @returns {number}
+ */
+export function distanceToSegment(point, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < EPSILON) return Math.hypot(point[0] - a[0], point[1] - a[1]);
+  let t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / lengthSquared;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(point[0] - (a[0] + dx * t), point[1] - (a[1] + dy * t));
+}
+
+/**
+ * Find a point that is guaranteed to be inside a simple polygon. Uses the
+ * centroid when it is inside, otherwise a coarse grid search that maximises the
+ * distance to the boundary (a cheap "pole of inaccessibility").
+ * @param {Point[]} polygon
+ * @returns {Point}
+ */
+export function polygonInteriorPoint(polygon) {
+  const centroid = polygonCentroid(polygon);
+  if (pointInPolygon(centroid, polygon)) return centroid;
+
+  const bounds = polygonBounds(polygon);
+  let best = centroid;
+  let bestDistance = -1;
+  const steps = 14;
+
+  for (let ix = 0; ix <= steps; ix += 1) {
+    for (let iy = 0; iy <= steps; iy += 1) {
+      const point = /** @type {Point} */ ([
+        bounds.minX + ((bounds.maxX - bounds.minX) * ix) / steps,
+        bounds.minY + ((bounds.maxY - bounds.minY) * iy) / steps,
+      ]);
+      if (!pointInPolygon(point, polygon)) continue;
+
+      let minDistance = Infinity;
+      for (let i = 0; i < polygon.length; i += 1) {
+        const d = distanceToSegment(point, polygon[i], polygon[(i + 1) % polygon.length]);
+        if (d < minDistance) minDistance = d;
+      }
+      if (minDistance > bestDistance) {
+        bestDistance = minDistance;
+        best = point;
+      }
+    }
+  }
+
+  return best;
+}
+
+/**
  * Andrew's monotone chain convex hull (counter-clockwise).
  * @param {Point[]} points
  * @returns {Point[]}
