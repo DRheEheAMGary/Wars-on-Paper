@@ -33,16 +33,36 @@
     "attackOdds": 0.58
   },
   "research": [
-    { "id": "economy", "name": "税制", "description": "+20% 金币", "costGold": 180 },
-    { "id": "military", "name": "操练", "description": "+15% 攻击", "costGold": 220 },
-    { "id": "logistics", "name": "筑路", "description": "行军时间 -25%", "costGold": 200 }
+    {
+      "id": "economy",
+      "name": "税制",
+      "description": "+20% 金币",
+      "costGold": 180
+    },
+    {
+      "id": "military",
+      "name": "操练",
+      "description": "+15% 攻击",
+      "costGold": 220
+    },
+    {
+      "id": "logistics",
+      "name": "筑路",
+      "description": "行军时间 -25%",
+      "costGold": 200
+    }
   ],
   "researchEffects": {
     "economy": 0.2,
     "military": 0.15,
     "logistics": 0.25
   },
-  "playerColors": ["#d24a35", "#2f6f9f", "#c98a2e", "#4f8a5b"],
+  "playerColors": [
+    "#d24a35",
+    "#2f6f9f",
+    "#c98a2e",
+    "#4f8a5b"
+  ],
   "cityLevels": [
     {
       "level": 1,
@@ -96,9 +116,48 @@
     }
   ],
   "terrain": {
-    "plains": { "attack": 1.0, "defense": 1.0 },
-    "forest": { "attack": 0.9, "defense": 1.15 },
-    "hills": { "attack": 0.85, "defense": 1.25 },
-    "mountain": { "attack": 0.7, "defense": 1.4 }
+    "plains": {
+      "attack": 1.0,
+      "defense": 1.0
+    },
+    "forest": {
+      "attack": 0.9,
+      "defense": 1.15
+    },
+    "hills": {
+      "attack": 0.85,
+      "defense": 1.25
+    },
+    "mountain": {
+      "attack": 0.7,
+      "defense": 1.4
+    }
+  },
+  "defaultDifficulty": "normal",
+  "matchLengthOptions": [
+    300,
+    600,
+    900,
+    1200
+  ],
+  "difficulties": {
+    "easy": {
+      "label": "简单",
+      "aiThinkTicks": 20,
+      "aiAttackOdds": 0.68,
+      "aiGoldMultiplier": 0.75
+    },
+    "normal": {
+      "label": "普通",
+      "aiThinkTicks": 12,
+      "aiAttackOdds": 0.58,
+      "aiGoldMultiplier": 1.0
+    },
+    "hard": {
+      "label": "困难",
+      "aiThinkTicks": 8,
+      "aiAttackOdds": 0.5,
+      "aiGoldMultiplier": 1.3
+    }
   }
 }

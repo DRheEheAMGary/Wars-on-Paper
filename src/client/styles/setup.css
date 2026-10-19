@@ -1,0 +1,187 @@
+/* Single-player setup page: white, minimal, hairline form rows. */
+
+.setup-screen {
+  align-items: flex-start;
+}
+
+.setup-column {
+  width: min(560px, 100%);
+}
+
+.setup-back {
+  display: inline-block;
+  margin-bottom: 48px;
+  color: var(--ink-faint);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.setup-back:hover {
+  color: var(--ink);
+}
+
+.setup-kicker {
+  margin: 0 0 10px;
+  color: var(--ink-faint);
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.setup-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.setup-form {
+  margin-top: 44px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.84rem;
+}
+
+.setup-row label,
+.setup-label {
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.setup-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+  justify-content: flex-end;
+}
+
+.setup-control input,
+.setup-control select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.setup-control input:focus,
+.setup-control select:focus {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.setup-control input[type='number'] {
+  max-width: 160px;
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-inline-button {
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.setup-inline-button:hover {
+  border-color: var(--ink);
+}
+
+.setup-segmented {
+  min-width: 0;
+}
+
+.setup-segmented label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.setup-segmented input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.setup-segmented label:has(input:checked) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.setup-start {
+  display: block;
+  width: 100%;
+  margin-top: 28px;
+  padding: 14px 18px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.84rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.setup-start:hover {
+  background: #2a2a2a;
+}
+
+.setup-note {
+  margin: 28px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.9;
+}
+
+.setup-note-muted {
+  margin-top: 6px;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .setup-back {
+    margin-bottom: 36px;
+  }
+
+  .setup-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .setup-control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .setup-segmented {
+    flex-wrap: wrap;
+  }
+}

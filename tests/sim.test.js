@@ -249,6 +249,39 @@ test('armies can cross the sea between continents', () => {
   assert.equal(state.cities[route.b].owner, 0);
 });
 
+test('difficulty profile scales AI income', () => {
+  const low = createMatch(map, balance, {
+    seed: 7,
+    aiCount: 1,
+    aiProfile: { aiGoldMultiplier: 0.5 },
+  });
+  const normal = createMatch(map, balance, {
+    seed: 7,
+    aiCount: 1,
+    aiProfile: { aiGoldMultiplier: 1.0 },
+  });
+  const lowStart = low.players[1].gold;
+  const normalStart = normal.players[1].gold;
+  step(low, balance, []);
+  step(normal, balance, []);
+  assert.ok(
+    normal.players[1].gold - normalStart > low.players[1].gold - lowStart,
+    'higher difficulty should earn more AI gold',
+  );
+});
+
+test('match length can be overridden', () => {
+  const state = createMatch(map, balance, {
+    seed: 7,
+    aiCount: 0,
+    matchSeconds: 30,
+  });
+  for (let i = 0; i < 320; i += 1) step(state, balance, []);
+  assert.equal(state.phase, 'ended');
+  assert.equal(state.result.outcome, 'ended');
+  assert.ok(state.result.rank >= 1);
+});
+
 test('research costs gold and unlocks an effect', () => {
   const state = makeState();
   state.players[0].gold = 1000;

@@ -49,7 +49,7 @@ function pickSpawnOnContinent(map, continent, count, used) {
  * Create a deterministic match state with a human player and AI opponents.
  * @param {import('./mapgen.js').GameMap} map
  * @param {any} balance
- * @param {{ seed?: number | string, playerName?: string, aiCount?: number }} [options]
+ * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any }} [options]
  * @returns {any}
  */
 export function createMatch(map, balance, options = {}) {
@@ -132,7 +132,8 @@ export function createMatch(map, balance, options = {}) {
     seed,
     tick: 0,
     phase: 'playing',
-    matchSeconds: balance.matchSeconds,
+    matchSeconds: options.matchSeconds ?? balance.matchSeconds,
+    aiProfile: options.aiProfile ?? null,
     spawnContinent: players[0]?.startContinent ?? 0,
     capital: humanSpawn?.capital ?? 0,
     rngState: hashSeed(`${seed}:match`),

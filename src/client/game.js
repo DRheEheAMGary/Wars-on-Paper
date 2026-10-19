@@ -35,6 +35,8 @@ const statScore = mustElement('stat-score');
 const statTimer = mustElement('stat-timer');
 const standingsElement = mustElement('standings');
 const resultRanking = mustElement('result-ranking');
+const pauseMenu = mustElement('pause-menu');
+const pauseDetail = mustElement('pause-detail');
 const pauseButton = mustElement('button-pause');
 const speedButton = mustElement('button-speed');
 
@@ -47,6 +49,28 @@ const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
 );
+
+const requestedAI = Number(params.get('ai'));
+const aiCount = Number.isInteger(requestedAI)
+  ? Math.min(3, Math.max(0, requestedAI))
+  : 2;
+const requestedDifficulty = params.get('difficulty') ?? '';
+const difficultyId = balance.difficulties?.[requestedDifficulty]
+  ? requestedDifficulty
+  : balance.defaultDifficulty ?? 'normal';
+const difficulty = balance.difficulties?.[difficultyId] ?? null;
+const requestedMinutes = Number(params.get('minutes'));
+const matchSeconds =
+  Number.isFinite(requestedMinutes) && requestedMinutes >= 3 && requestedMinutes <= 30
+    ? Math.round(requestedMinutes * 60)
+    : balance.matchSeconds;
+const startQuery = new URLSearchParams({
+  seed: String(seed),
+  cities: String(cityCount),
+  ai: String(aiCount),
+  difficulty: difficultyId,
+  minutes: String(Math.round(matchSeconds / 60)),
+});
 
 /** @type {any} */
 let map = null;
@@ -79,7 +103,17 @@ const worker = new Worker('/src/client/game-worker.js', { type: 'module' });
 worker.onerror = (event) => {
   showToast(`模拟器启动失败：${event.message || '未知错误'}`);
 };
-worker.postMessage({ type: 'init', config: { seed, cityCount }, balance });
+worker.postMessage({
+  type: 'init',
+  config: {
+    seed,
+    cityCount,
+    aiCount,
+    matchSeconds,
+    aiProfile: difficulty,
+  },
+  balance,
+});
 
 worker.onmessage = (event) => {
   const message = event.data;
@@ -127,7 +161,7 @@ function updateHud() {
   statCities.textContent = String(player.cityCount);
   statScore.textContent = String(player.score);
   const elapsed = Math.floor((snapshot.tick * balance.tickMs) / 1000);
-  const remaining = Math.max(0, balance.matchSeconds - elapsed);
+  const remaining = Math.max(0, (snapshot.matchSeconds ?? balance.matchSeconds) - elapsed);
   const minutes = Math.floor(remaining / 60);
   const seconds = String(remaining % 60).padStart(2, '0');
   statTimer.textContent = `${minutes}:${seconds}`;
@@ -612,11 +646,24 @@ canvas.addEventListener('pointerleave', () => {
 
 window.addEventListener('resize', resizeCanvas);
 
-pauseButton.addEventListener('click', () => {
-  paused = !paused;
+function setPaused(next) {
+  if (!snapshot || snapshot.phase !== 'playing') return;
+  paused = Boolean(next);
   pauseButton.textContent = paused ? '继续' : '暂停';
   worker.postMessage({ type: paused ? 'pause' : 'resume' });
-});
+  pauseMenu.classList.toggle('hidden', !paused);
+  if (paused) {
+    pauseDetail.textContent =
+      `${difficulty?.label ?? '普通'}难度 · ${Math.round(matchSeconds / 60)} 分钟 · ` +
+      `种子 ${seed}`;
+  }
+}
+
+function goSetup() {
+  window.location.href = `/setup.html?${startQuery.toString()}`;
+}
+
+pauseButton.addEventListener('click', () => setPaused(!paused));
 
 speedButton.addEventListener('click', () => {
   speed = speed === 1 ? 2 : 1;
@@ -624,17 +671,28 @@ speedButton.addEventListener('click', () => {
   worker.postMessage({ type: 'speed', speed });
 });
 
-mustElement('button-menu').addEventListener('click', () => {
+mustElement('button-menu').addEventListener('click', () => setPaused(true));
+mustElement('button-resume').addEventListener('click', () => setPaused(false));
+mustElement('button-restart-same').addEventListener('click', () => {
+  window.location.href = `/game.html?${startQuery.toString()}`;
+});
+mustElement('button-pause-settings').addEventListener('click', goSetup);
+mustElement('button-pause-home').addEventListener('click', () => {
   window.location.href = '/';
 });
 
 mustElement('button-home').addEventListener('click', () => {
   window.location.href = '/';
 });
+mustElement('button-result-settings').addEventListener('click', goSetup);
 
 mustElement('button-restart').addEventListener('click', () => {
-  const nextSeed = Math.floor(Math.random() * 1_000_000);
-  window.location.href = `/game.html?seed=${nextSeed}&cities=${cityCount}`;
+  startQuery.set('seed', String(Math.floor(Math.random() * 1_000_000)));
+  window.location.href = `/game.html?${startQuery.toString()}`;
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setPaused(!paused);
 });
 
 // Surface unexpected errors instead of silently breaking every button.

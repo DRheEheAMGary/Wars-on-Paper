@@ -52,7 +52,7 @@ function checkEnd(state, balance) {
   if (state.phase !== 'playing') return;
   const human = state.players[0];
   const totalCities = state.cities.length;
-  const matchTicks = Math.round((balance.matchSeconds * 1000) / balance.tickMs);
+  const matchTicks = Math.round(((state.matchSeconds ?? balance.matchSeconds) * 1000) / balance.tickMs);
 
   if (human.cityCount === 0) {
     state.phase = 'lost';
@@ -105,7 +105,7 @@ function aiAct(state, balance, player) {
   if (owned.length === 0) return;
 
   const reserve = balance.ai?.reserveGold ?? 0;
-  const attackOdds = balance.ai?.attackOdds ?? 0.58;
+  const attackOdds = state.aiProfile?.aiAttackOdds ?? balance.ai?.attackOdds ?? 0.58;
   const effects = balance.researchEffects ?? {};
 
   // Research occasionally.
@@ -198,7 +198,7 @@ function aiAct(state, balance, player) {
  * @param {any} balance
  */
 function runAI(state, balance) {
-  const thinkTicks = balance.ai?.thinkTicks ?? 12;
+  const thinkTicks = state.aiProfile?.aiThinkTicks ?? balance.ai?.thinkTicks ?? 12;
   for (const player of state.players) {
     if (!player.isAI || player.cityCount === 0) continue;
     if ((state.tick + player.id * 3) % thinkTicks !== 0) continue;

@@ -52,8 +52,12 @@ export function tickEconomy(state, balance) {
       if (army.owner === player.id) soldiers += army.soldiers;
     }
 
-    const goldMultiplier = 1 + (player.tech?.economy ? goldBonusEffect : 0);
-    player.gold += goldGain * dt * goldMultiplier;
+    const techMultiplier = 1 + (player.tech?.economy ? goldBonusEffect : 0);
+    const difficultyMultiplier =
+      player.isAI && state.aiProfile?.aiGoldMultiplier
+        ? state.aiProfile.aiGoldMultiplier
+        : 1;
+    player.gold += goldGain * dt * techMultiplier * difficultyMultiplier;
     player.food += (foodGain - soldiers * balance.soldierFoodUpkeepPerSecond) * dt;
 
     if (player.food < 0) {

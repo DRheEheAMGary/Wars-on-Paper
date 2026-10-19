@@ -52,7 +52,13 @@ self.onmessage = (event) => {
     const seed = message.config.seed;
     const cityCount = message.config.cityCount;
     const map = generateMap({ seed, cityCount });
-    state = createMatch(map, balance, { seed, playerName: '指挥官' });
+    state = createMatch(map, balance, {
+      seed,
+      playerName: '指挥官',
+      aiCount: message.config.aiCount,
+      matchSeconds: message.config.matchSeconds,
+      aiProfile: message.config.aiProfile,
+    });
     self.postMessage({ type: 'init', map, snapshot: snapshot(state) });
     startTimer();
     return;
