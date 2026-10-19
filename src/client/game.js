@@ -63,6 +63,9 @@ let lastPointerX = 0;
 let lastPointerY = 0;
 let toastTimer = 0;
 let drawQueued = false;
+let panelCityId = -1;
+/** @type {any} */
+let panelRefs = null;
 
 const worker = new Worker('/src/client/game-worker.js', { type: 'module' });
 worker.onerror = (event) => {
@@ -104,6 +107,8 @@ function createElement(tag, className, text) {
 function hidePanel() {
   panelElement.classList.add('hidden');
   panelElement.replaceChildren();
+  panelCityId = -1;
+  panelRefs = null;
 }
 
 function updateHud() {
@@ -177,80 +182,61 @@ function renderPanel() {
     hidePanel();
     return;
   }
+  const cityState = snapshot.cities[selectedId];
+  const owned = cityState.owner === 0;
+  // Rebuild only when the selected city or its ownership changes; snapshots
+  // otherwise update values in place so clicks are never swallowed by a rebuild.
+  if (!panelRefs || panelCityId !== selectedId || panelRefs.owned !== owned) {
+    buildPanel();
+  } else {
+    updatePanel();
+  }
+}
+
+function buildPanel() {
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
-  const player = snapshot.players[0];
   const owned = cityState.owner === 0;
-  const militaryMultiplier =
-    1 + (player.tech?.military ? balance.researchEffects.military : 0);
+  panelCityId = selectedId;
+  panelRefs = { cityId: selectedId, owned, research: new Map(), rows: new Map() };
 
   panelElement.classList.remove('hidden');
   panelElement.replaceChildren();
 
   panelElement.append(
     createElement('h3', 'panel-title', city.name),
-    createElement(
-      'p',
-      'panel-sub',
-      `Lv.${cityState.level} · 人口 ${cityState.population} · 驻军 ${cityState.garrison}` +
-        (owned ? '' : ' · 中立城市（点击你自己的城市才能操作）'),
-    ),
+    (panelRefs.sub = createElement('p', 'panel-sub', '')),
   );
 
   if (owned) {
     const actions = createElement('div', 'panel-actions');
-    const config =
-      balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
 
-    const recruit = createElement(
-      'button',
-      '',
-      `招募 ${balance.recruitBatch} 兵（${balance.soldierCostGold * balance.recruitBatch} 金 / ${balance.soldierCostPopulation * balance.recruitBatch} 人口）`,
-    );
-    recruit.addEventListener('click', () => {
+    panelRefs.recruit = createElement('button', '');
+    panelRefs.recruit.addEventListener('click', () => {
       worker.postMessage({
         type: 'command',
         command: { type: 'recruit', cityId: selectedId },
       });
     });
-    actions.append(recruit);
 
-    const upgrade = createElement(
-      'button',
-      '',
-      cityState.level >= balance.cityLevels.length
-        ? '已满级'
-        : `升级至 Lv.${cityState.level + 1}（${config.upgradeGold} 金）`,
-    );
-    upgrade.disabled = cityState.level >= balance.cityLevels.length;
-    upgrade.addEventListener('click', () => {
+    panelRefs.upgrade = createElement('button', '');
+    panelRefs.upgrade.addEventListener('click', () => {
       worker.postMessage({
         type: 'command',
         command: { type: 'upgrade', cityId: selectedId },
       });
     });
-    actions.append(upgrade);
+
+    actions.append(panelRefs.recruit, panelRefs.upgrade);
     panelElement.append(actions);
 
-    if (cityState.upgrading) {
-      const remaining = Math.max(0, cityState.upgrading.endsTick - snapshot.tick);
-      panelElement.append(
-        createElement('p', 'panel-sub', `升级中… 剩余 ${(remaining / 10).toFixed(0)} 秒`),
-      );
-    }
+    panelRefs.upgradeInfo = createElement('p', 'panel-sub', '');
+    panelElement.append(panelRefs.upgradeInfo);
 
     panelElement.append(createElement('p', 'panel-label', '科技'));
     const researchList = createElement('div', 'research-list');
     for (const tech of balance.research ?? []) {
-      const researched = Boolean(player.tech?.[tech.id]);
-      const button = createElement(
-        'button',
-        '',
-        researched
-          ? `${tech.name} · 已研发`
-          : `${tech.name}（${tech.description}）· ${tech.costGold} 金`,
-      );
-      button.disabled = researched || player.gold < tech.costGold;
+      const button = createElement('button', '');
       button.addEventListener('click', () => {
         worker.postMessage({
           type: 'command',
@@ -258,6 +244,7 @@ function renderPanel() {
         });
       });
       researchList.append(button);
+      panelRefs.research.set(tech.id, { button, tech });
     }
     panelElement.append(researchList);
   }
@@ -270,25 +257,22 @@ function renderPanel() {
   const targets = [...city.neighbors, ...(city.seaNeighbors ?? [])];
   for (const neighbourId of targets) {
     const neighbour = map.cities[neighbourId];
-    const neighbourState = snapshot.cities[neighbourId];
-    const sea = !city.neighbors.includes(neighbourId);
-    const ownerText =
-      neighbourState.owner === 0
-        ? '你的城市'
-        : neighbourState.owner === null
-          ? '中立'
-          : '敌方';
-
     const row = createElement('div', 'neighbour-row');
-    row.append(
-      createElement(
-        'span',
-        'neighbour-info',
-        `${neighbour.name}${sea ? ' · 渡海' : ''} · ${ownerText} · 守军 ${neighbourState.garrison}`,
-      ),
-    );
+    const info = createElement('span', 'neighbour-info', '');
+    row.append(info);
+
+    const ref = {
+      neighbourId,
+      neighbour,
+      sea: !city.neighbors.includes(neighbourId),
+      info,
+      halfButton: null,
+      allButton: null,
+      reinforceButton: null,
+    };
 
     if (owned) {
+      const neighbourState = snapshot.cities[neighbourId];
       if (neighbourState.owner === 0) {
         const button = createElement('button', '', '增援');
         button.addEventListener('click', () => {
@@ -299,36 +283,25 @@ function renderPanel() {
           showToast(`增援 ${neighbour.name}`);
         });
         row.append(button);
+        ref.reinforceButton = button;
       } else {
-        const targetInfo = {
-          level: neighbourState.level,
-          garrison: neighbourState.garrison,
-          terrain: neighbour.terrain,
-        };
-        const half = Math.max(1, Math.floor(cityState.garrison / 2));
-        const allOdds = Math.round(
-          estimateBattle(cityState.garrison, targetInfo, balance, militaryMultiplier)
-            .odds * 100,
-        );
-        const halfOdds = Math.round(
-          estimateBattle(half, targetInfo, balance, militaryMultiplier).odds * 100,
-        );
         const actions = createElement('div', 'neighbour-actions');
-
-        const halfButton = createElement('button', '', `半 ${halfOdds}%`);
+        const halfButton = createElement('button', '');
         halfButton.addEventListener('click', () => {
+          const current = snapshot.cities[selectedId];
+          const soldiers = Math.max(1, Math.floor(current.garrison / 2));
           worker.postMessage({
             type: 'command',
             command: {
               type: 'deploy',
               fromCity: selectedId,
               toCity: neighbourId,
-              soldiers: half,
+              soldiers,
             },
           });
           showToast(`派兵前往 ${neighbour.name}`);
         });
-        const allButton = createElement('button', '', `全 ${allOdds}%`);
+        const allButton = createElement('button', '');
         allButton.addEventListener('click', () => {
           worker.postMessage({
             type: 'command',
@@ -338,12 +311,101 @@ function renderPanel() {
         });
         actions.append(halfButton, allButton);
         row.append(actions);
+        ref.halfButton = halfButton;
+        ref.allButton = allButton;
       }
     }
 
     list.append(row);
+    panelRefs.rows.set(neighbourId, ref);
   }
   panelElement.append(list);
+
+  updatePanel();
+}
+
+function updatePanel() {
+  if (!panelRefs || !snapshot) return;
+  const cityState = snapshot.cities[panelCityId];
+  if (!cityState) return;
+  const player = snapshot.players[0];
+  const config =
+    balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
+
+  panelRefs.sub.textContent =
+    `Lv.${cityState.level} · 人口 ${cityState.population} · 驻军 ${cityState.garrison}` +
+    (panelRefs.owned ? '' : ' · 中立城市（点击你自己的城市才能操作）');
+
+  if (panelRefs.owned) {
+    const recruitCost = balance.soldierCostGold * balance.recruitBatch;
+    const recruitPopulation = balance.soldierCostPopulation * balance.recruitBatch;
+    panelRefs.recruit.textContent =
+      `招募 ${balance.recruitBatch} 兵（${recruitCost} 金 / ${recruitPopulation} 人口）`;
+    panelRefs.recruit.disabled =
+      player.gold < recruitCost ||
+      cityState.population < recruitPopulation ||
+      cityState.garrison + balance.recruitBatch > config.garrisonCap;
+
+    panelRefs.upgrade.textContent =
+      cityState.level >= balance.cityLevels.length
+        ? '已满级'
+        : cityState.upgrading
+          ? '升级中…'
+          : `升级至 Lv.${cityState.level + 1}（${config.upgradeGold} 金）`;
+    panelRefs.upgrade.disabled =
+      cityState.level >= balance.cityLevels.length ||
+      Boolean(cityState.upgrading) ||
+      (config.upgradeGold !== null && player.gold < config.upgradeGold);
+
+    if (cityState.upgrading) {
+      const remaining = Math.max(0, cityState.upgrading.endsTick - snapshot.tick);
+      panelRefs.upgradeInfo.textContent = `升级中… 剩余 ${Math.ceil(remaining / 10)} 秒`;
+    } else {
+      panelRefs.upgradeInfo.textContent = '';
+    }
+
+    for (const [techId, entry] of panelRefs.research) {
+      const researched = Boolean(player.tech?.[techId]);
+      entry.button.textContent = researched
+        ? `${entry.tech.name} · 已研发`
+        : `${entry.tech.name}（${entry.tech.description}）· ${entry.tech.costGold} 金`;
+      entry.button.disabled = researched || player.gold < entry.tech.costGold;
+    }
+  }
+
+  const militaryMultiplier =
+    1 + (player.tech?.military ? balance.researchEffects.military : 0);
+  const garrison = cityState.garrison;
+  const half = Math.max(1, Math.floor(garrison / 2));
+
+  for (const [neighbourId, ref] of panelRefs.rows) {
+    const neighbourState = snapshot.cities[neighbourId];
+    const ownerText =
+      neighbourState.owner === 0
+        ? '你的城市'
+        : neighbourState.owner === null
+          ? '中立'
+          : '敌方';
+    ref.info.textContent =
+      `${ref.neighbour.name}${ref.sea ? ' · 渡海' : ''} · ${ownerText} · ` +
+      `守军 ${neighbourState.garrison}`;
+
+    if (ref.halfButton && ref.allButton) {
+      const targetInfo = {
+        level: neighbourState.level,
+        garrison: neighbourState.garrison,
+        terrain: ref.neighbour.terrain,
+      };
+      const halfOdds = Math.round(
+        estimateBattle(half, targetInfo, balance, militaryMultiplier).odds * 100,
+      );
+      const allOdds = Math.round(
+        estimateBattle(garrison, targetInfo, balance, militaryMultiplier).odds * 100,
+      );
+      ref.halfButton.textContent = `半 ${halfOdds}%`;
+      ref.allButton.textContent = `全 ${allOdds}%`;
+    }
+  }
 }
 
 function showResult() {
