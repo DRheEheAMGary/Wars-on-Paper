@@ -160,12 +160,12 @@ p = A / (A + D)
 
 | 命令 | 作用 | 端口 |
 | --- | --- | --- |
-| `npm run dev` | 静态开发服务器 + SSE 热刷新（单机可玩） | 8080 |
-| `npm run server` | 静态资源 + WebSocket 多人服务器 | 8080 |
+| `npm run dev` | 静态开发服务器 + SSE 热刷新（单机可玩） | 8787 |
+| `npm run server` | 静态资源 + WebSocket 多人服务器 | 8787 |
 | `npm test` | 运行全部单元测试（`node --test`） | — |
 | `node tools/bench.js` | 模拟性能基准 | — |
 
-浏览器访问 `http://localhost:8080`；单机模式不依赖后端逻辑，打包后的静态文件可直接部署到任意静态托管。
+浏览器访问 `http://localhost:8787`；单机模式不依赖后端逻辑，打包后的静态文件可直接部署到任意静态托管。
 
 ### 4.3 目录结构
 
@@ -400,10 +400,10 @@ LOBBY(45s) → MATCH(12min) → RESULT(20s) → LOBBY ...
 
 > 估算按「我为主开发、AI 辅助」计算，1 人日 ≈ 6 小时有效开发。
 
-### M0 工程骨架（0.5 人日）
+### M0 工程骨架（0.5 人日）✅ 已完成（v0.1.0）
 
 - 交付：目录结构、`package.json`、`jsconfig.json`、零依赖 `dev.js`（静态 + SSE 热刷新）、`index.html` 主菜单空壳、`constants.js`、README 更新。
-- 验收：`npm run dev` 打开 8080；修改任意源码 → 浏览器自动刷新；`npm test` 通过。
+- 验收：`npm run dev` 打开 8787；修改任意源码 → 浏览器自动刷新；`npm test` 通过。
 
 ### M1 地图与渲染（1 人日）
 
@@ -488,6 +488,6 @@ LOBBY(45s) → MATCH(12min) → RESULT(20s) → LOBBY ...
 
 ## 13. 下一步
 
-计划已按上述决策更新完毕，仓库目前只包含文档。你确认开工后，从 **M0 + M1** 开始：交付可拖拽缩放、显示随机边缘城市领土的地图原型（`npm run dev` 直接打开），随后进入 M2 核心循环。
+M0 工程骨架已完成（`v0.1.0`，2026-10-19）：`npm run dev` 可打开主菜单空壳并热刷新。下一步 **M1 地图生成与渲染**：交付可拖拽缩放、显示随机边缘城市领土的地图原型，随后进入 M2 核心循环。
 
 协作约定见 [`AGENT.md`](../AGENT.md)，版本号规则见 [`docs/VERSIONING.md`](VERSIONING.md)。

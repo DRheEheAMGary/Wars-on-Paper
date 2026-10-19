@@ -8,7 +8,7 @@
 
 ## 当前状态
 
-规划阶段，尚未开工。首个版本 `0.1.0` 将在 M0（工程骨架）完成时发布。
+**M0 工程骨架已完成**（`v0.1.0`）。可运行主菜单空壳、开发服务器与热刷新；下一步 M1 地图生成与 Canvas 渲染。
 
 ## 文档
 
@@ -19,13 +19,15 @@
 | [AGENT.md](AGENT.md) | AI 协作约定（面向 Agent 与协作者） |
 | [CHANGELOG.md](CHANGELOG.md) | 变更记录 |
 
-## 计划中的启动方式
+## 启动方式
+
+需要 Node.js ≥ 20（当前无构建步骤，`npm install` 仅安装 `ws`，多人模式 M4 才用到）。
 
 ```bash
-npm install          # 仅安装 ws（唯一运行依赖）
-npm run dev          # 开发服务器，浏览器打开 http://localhost:8080
-npm run server       # 静态资源 + 多人 WebSocket 服务器
+npm install          # 可选，仅安装 ws（唯一运行依赖）
+npm run dev          # 开发服务器 + 热刷新，浏览器打开 http://localhost:8787
+npm run server       # 静态资源 + 多人 WebSocket 服务器（M4 起提供联机）
 npm test             # node --test
 ```
 
-> 以上命令将在 M0 里程碑落地。
+开发服务器默认只监听 `127.0.0.1:8787`（8080 常被其他工具占用），可用 `PORT=8788 npm run dev` 更换端口。

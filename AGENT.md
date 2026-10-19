@@ -63,8 +63,8 @@
 | 命令 | 作用 |
 | --- | --- |
 | `npm install` | 安装唯一运行依赖 `ws`（M0 后可用） |
-| `npm run dev` | 开发服务器 + SSE 热刷新，端口 `8080` |
-| `npm run server` | 静态资源 + 多人 WebSocket，端口 `8080` |
+| `npm run dev` | 开发服务器 + SSE 热刷新，端口 `8787` |
+| `npm run server` | 静态资源 + 多人 WebSocket，端口 `8787` |
 | `npm test` | `node --test`，必须全绿 |
 | `node tools/bench.js` | 模拟/渲染性能基准 |
 | `tools/mapdebug.html` | 地图生成可视化调试页 |
@@ -86,7 +86,7 @@
 ## 5. 代码规范
 
 - **模块**：ESM；相对导入**必须带 `.js` 扩展名**；统一具名导出（不写 `export default`）；禁止循环依赖。
-- **类型**：每个文件顶部 `// @ts-check`；状态与消息用 JSDoc `@typedef` 定义，集中在 `shared/state.js`（或 `shared/types.js`）。不引入 `.ts` 文件、不运行 `tsc`。
+- **类型**：`src/shared/` 与 `src/client/` 文件顶部写 `// @ts-check`，用 JSDoc `@typedef` 定义状态与消息类型（集中在 `shared/state.js` 或 `shared/types.js`）。`src/server/` 与 `tests/` 因未引入 `@types/node`，暂不开启 `@ts-check`（JSDoc 照常写）。不引入 `.ts` 文件、不运行 `tsc`。
 - **风格**：2 空格缩进、单引号、语句结尾分号、行宽 ≤ 100；函数 ≤ 60 行、文件 ≤ 400 行，超出就拆。
 - **命名**：`camelCase` 变量/函数、`PascalCase` 类型、`SCREAMING_SNAKE_CASE` 常量、CSS 用 kebab-case。
 - **结构**：优先纯函数；所有状态变更集中在 `sim.js` 的 tick 中；事件通过返回值传出，不写全局可变单例。
@@ -188,7 +188,8 @@
 
 ## 12. 当前状态与下一步
 
-- **阶段**：规划完成，未开工。
-- **下一里程碑**：**M0 工程骨架**（`package.json`、`jsconfig.json`、`src/` 目录、零依赖 `dev.js` + SSE 热刷新、`index.html` 主菜单空壳、`npm test` 基线）。
-- **M0 验收**：`npm run dev` 打开 `localhost:8080`；修改源码后浏览器自动刷新；`npm test` 通过。
-- 用户确认开工后再动手；未开工前只允许文档类改动（本文件、`PLAN`、`VERSIONING`、`README`、`CHANGELOG`）。
+- **阶段**：M0 工程骨架已完成（`v0.1.0`，2026-10-19）。
+- **当前版本**：`package.json` → `0.1.0`；页脚与服务器启动日志的版本号以此为唯一来源。
+- **M0 验收结果**：`npm run dev` 打开 `http://localhost:8787`；修改源码后浏览器自动刷新；`npm test` 6/6 通过；`npm run server` 不注入热刷新脚本；路径穿越请求返回 400。
+- **下一里程碑**：**M1 地图生成与渲染**（目标版本 `0.2.0`）：种子化地图生成（轮廓 / Poisson 采样 / Voronoi / 共享边抖动 / 邻接 / 地形）、Canvas 渲染与相机、`tools/mapdebug.html`、地图单元测试。
+- M0 之后按里程碑逐步实现；每个里程碑完成时按 `docs/VERSIONING.md` 发布新版本并更新 `CHANGELOG.md`。
