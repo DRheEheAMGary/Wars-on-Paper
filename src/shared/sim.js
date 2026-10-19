@@ -316,6 +316,8 @@ function aiAct(state, balance, player) {
   const random = () => nextStateRandom(state);
   const owned = state.cities.filter((/** @type {any} */ city) => city.owner === player.id);
   if (owned.length === 0) return;
+  const mistakeChance = state.aiProfile?.aiMistakeChance ?? 0;
+  if (mistakeChance > 0 && random() < mistakeChance) return;
   const reserve = balance.ai?.reserveGold ?? 0;
   const attackOdds = state.aiProfile?.aiAttackOdds ?? balance.ai?.attackOdds ?? 0.58;
   const effects = techEffects(player, balance);
@@ -506,7 +508,12 @@ function aiAct(state, balance, player) {
           to: targetId,
           odds: estimate.odds,
           weight: targetWeight,
-          soldiers: city.garrison,
+          soldiers: Math.max(
+            10,
+            Math.floor(
+              city.garrison * (1 - (state.aiProfile?.aiReserveRatio ?? 0)),
+            ),
+          ),
           stance,
           order,
         };
@@ -523,6 +530,37 @@ function aiAct(state, balance, player) {
       order: bestAttack.order,
       owner: player.id,
     });
+    if (state.aiProfile?.aiMultiFront && random() < 0.65) {
+      for (const city of owned) {
+        if (city.id === bestAttack.from) continue;
+        ensureCityUnits(city);
+        if (city.garrison < 20) continue;
+        for (const targetId of [...city.neighbors, ...(city.seaNeighbors ?? [])]) {
+          const target = state.cities[targetId];
+          if (!target || target.owner === player.id) continue;
+          const secondEstimate = estimateBattle(city.units, target, balance, {
+            attackerAttack: effects.attack,
+            defenderDefense: 0,
+            siegeBonus: effects.siege,
+          });
+          if (secondEstimate.odds < attackOdds) continue;
+          applyCommand(state, balance, {
+            type: 'deploy',
+            fromCity: city.id,
+            toCity: targetId,
+            soldiers: Math.max(
+              10,
+              Math.floor(
+                city.garrison * (1 - (state.aiProfile?.aiReserveRatio ?? 0)),
+              ),
+            ),
+            stance: 'assault',
+            owner: player.id,
+          });
+          return;
+        }
+      }
+    }
   }
 }
 

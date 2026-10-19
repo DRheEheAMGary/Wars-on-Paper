@@ -253,7 +253,10 @@
       "aiAttackOdds": 0.68,
       "aiGoldMultiplier": 0.75,
       "aiActionsPerThink": 1,
-      "aiStartDelaySeconds": 10
+      "aiStartDelaySeconds": 10,
+      "aiReserveRatio": 0,
+      "aiMistakeChance": 0.25,
+      "aiMultiFront": false
     },
     "normal": {
       "label": "普通",
@@ -261,7 +264,10 @@
       "aiAttackOdds": 0.58,
       "aiGoldMultiplier": 1.0,
       "aiActionsPerThink": 1,
-      "aiStartDelaySeconds": 6
+      "aiStartDelaySeconds": 6,
+      "aiReserveRatio": 0.15,
+      "aiMistakeChance": 0.08,
+      "aiMultiFront": false
     },
     "hard": {
       "label": "困难",
@@ -269,7 +275,10 @@
       "aiAttackOdds": 0.5,
       "aiGoldMultiplier": 1.3,
       "aiActionsPerThink": 2,
-      "aiStartDelaySeconds": 3
+      "aiStartDelaySeconds": 3,
+      "aiReserveRatio": 0.25,
+      "aiMistakeChance": 0,
+      "aiMultiFront": true
     }
   },
   "units": {

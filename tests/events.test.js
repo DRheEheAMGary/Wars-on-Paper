@@ -25,3 +25,9 @@ test('leading human triggers an AI coalition', () => {
   const key = `${Math.min(ais[0].id, ais[1].id)}:${Math.max(ais[0].id, ais[1].id)}`;
   assert.equal(state.diplomacy[key]?.status, 'ally');
 });
+test('difficulty profiles define reserve, mistake and multi-front behaviour', () => {
+  assert.equal(balance.difficulties.easy.aiMultiFront, false);
+  assert.equal(balance.difficulties.hard.aiMultiFront, true);
+  assert.ok(balance.difficulties.hard.aiReserveRatio > balance.difficulties.easy.aiReserveRatio);
+  assert.ok(balance.difficulties.easy.aiMistakeChance > balance.difficulties.hard.aiMistakeChance);
+});
