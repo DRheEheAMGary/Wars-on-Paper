@@ -62,6 +62,12 @@ const tutorialDesc = mustElement('tutorial-desc');
 const tutorialComplete = mustElement('tutorial-complete');
 const pauseButton = mustElement('button-pause');
 const speedButton = mustElement('button-speed');
+const overviewElement = mustElement('overview');
+const overviewTitle = mustElement('overview-title');
+const overviewMeta = mustElement('overview-meta');
+const overviewBody = mustElement('overview-body');
+const overviewClose = mustElement('overview-close');
+const overviewButton = mustElement('button-overview');
 
 const CITY_COUNTS = new Set([60, 100, 160, 240, 360]);
 const params = new URLSearchParams(window.location.search);
@@ -150,6 +156,9 @@ let worker = null;
 let reconnectTimer = 0;
 let tutorialStep = 0;
 let tutorialDone = false;
+let overviewOpen = false;
+let overviewFilter = 'mine';
+let overviewLastRender = 0;
 
 const TUTORIAL_STEPS = [
   {
@@ -251,6 +260,13 @@ function applySnapshot(nextSnapshot) {
   if (selectedId >= 0) renderPanel();
   if (snapshot.phase !== 'playing') showResult();
   updateTutorial();
+  if (overviewOpen) {
+    const now = performance.now();
+    if (now - overviewLastRender > 1200) {
+      overviewLastRender = now;
+      renderOverview();
+    }
+  }
   requestDraw();
 }
 
@@ -384,6 +400,375 @@ function hidePanel() {
   panelElement.replaceChildren();
   panelCityId = -1;
   panelRefs = null;
+}
+
+
+function svgIcon(id) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `#icon-${id}`);
+  svg.append(use);
+  return svg;
+}
+
+function overviewSummaryCard(label, value, iconId, suffix = '') {
+  const card = createElement('div', 'overview-card');
+  card.append(createElement('span', 'overview-card-label', label));
+  const valueElement = createElement('span', 'overview-card-value');
+  if (iconId) valueElement.append(svgIcon(iconId));
+  valueElement.append(document.createTextNode(value));
+  if (suffix) valueElement.append(createElement('small', '', ` ${suffix}`));
+  card.append(valueElement);
+  return card;
+}
+
+function overviewSection(title) {
+  const section = createElement('section', 'overview-section');
+  section.append(createElement('h3', '', title));
+  return section;
+}
+
+function overviewListItem(left, right = '') {
+  const item = document.createElement('li');
+  item.append(createElement('span', '', left));
+  if (right) item.append(createElement('b', '', right));
+  return item;
+}
+
+function formatClock(seconds) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const rest = String(safe % 60).padStart(2, '0');
+  return `${minutes}:${rest}`;
+}
+
+function cityDisplayName(cityId) {
+  return map?.cities?.[cityId]?.name ?? `城 ${cityId + 1}`;
+}
+
+function buildingDisplayName(id) {
+  const building = Object.values(balance.buildings ?? {}).find(
+    (entry) => entry.id === id,
+  );
+  return building?.name ?? id;
+}
+
+function focusDisplayName(focusId) {
+  return balance.cityFocus?.[focusId]?.name ?? focusId ?? '';
+}
+
+function specialDisplayName(type) {
+  return balance.specialSites?.[type]?.name ?? type ?? '';
+}
+
+function relationStatusLabel(status) {
+  if (status === 'ally') return '结盟';
+  if (status === 'peace') return '停战';
+  if (status === 'war') return '敌对';
+  if (status === 'betrayed') return '背叛中';
+  return '中立';
+}
+
+function relationBetween(stateSnapshot, a, b) {
+  const key = `${Math.min(a, b)}:${Math.max(a, b)}`;
+  return stateSnapshot.diplomacy?.[key]?.status ?? 'neutral';
+}
+
+function renderOverview() {
+  if (!snapshot) return;
+  const playerId = myPlayerId >= 0 ? myPlayerId : 0;
+  const player = snapshot.players[playerId] ?? snapshot.players[0];
+  if (!player) return;
+  const cities = snapshot.cities ?? [];
+  const ownCities = cities.filter((city) => city.owner === playerId);
+  const specialSites = snapshot.specialSites ?? [];
+  const ownedSpecial = specialSites.filter(
+    (site) => cities[site.cityId]?.owner === playerId,
+  ).length;
+  const specialRequired = snapshot.specialRequired ?? 0;
+  const researched = Object.keys(player.tech ?? {}).length;
+  const techTotal = Object.keys(balance.research ?? {}).length;
+  const playersById = new Map(snapshot.players.map((entry) => [entry.id, entry]));
+
+  overviewTitle.textContent = `${player.name} · ${
+    isMultiplayer ? '多人对局总览' : '国家总览'
+  }`;
+  const timeLabel =
+    snapshot.mode === 'endless'
+      ? `第 ${snapshot.wave ?? 0} 波`
+      : `剩余 ${formatClock(
+          (snapshot.matchSeconds ?? 0) - (snapshot.tick ?? 0) * 0.1,
+        )}`;
+  overviewMeta.textContent = `实时 · ${timeLabel}`;
+
+  overviewBody.replaceChildren();
+
+  const summary = createElement('div', 'overview-summary');
+  summary.append(
+    overviewSummaryCard('金币', Math.floor(player.gold).toLocaleString(), 'gold'),
+    overviewSummaryCard('粮食', Math.floor(player.food).toLocaleString(), 'food'),
+    overviewSummaryCard('城市', `${ownCities.length}`, 'cities', `/ ${cities.length}`),
+    overviewSummaryCard('分数', player.score.toLocaleString(), 'score'),
+    overviewSummaryCard('歼敌', `${Math.round(player.kills ?? 0)}`, 'army'),
+    overviewSummaryCard('科技', `${researched}`, 'tech', `/ ${techTotal}`),
+    overviewSummaryCard(
+      '将领',
+      `${(player.commanders ?? []).length}`,
+      'commander',
+    ),
+    overviewSummaryCard(
+      '战略目标',
+      `${ownedSpecial}`,
+      'flag',
+      `/ ${specialRequired}`,
+    ),
+  );
+  overviewBody.append(summary);
+
+  const columns = createElement('div', 'overview-columns');
+
+  // Research / tech panel
+  const techSection = overviewSection('科技与研发');
+  const techList = createElement('ul', 'overview-list');
+  if (player.research) {
+    const current = Object.values(balance.research ?? {}).find(
+      (entry) => entry.id === player.research.id,
+    );
+    const remaining = Math.max(
+      0,
+      Math.ceil((player.research.endsTick - snapshot.tick) / 10),
+    );
+    techList.append(
+      overviewListItem(`研发中：${current?.name ?? player.research.id}`, `${remaining}s`),
+    );
+  } else {
+    techList.append(overviewListItem('当前没有进行中的研发', ''));
+  }
+  for (const tech of Object.values(balance.research ?? {})) {
+    const isDone = Boolean(player.tech?.[tech.id]);
+    techList.append(
+      overviewListItem(
+        `${tech.name} · ${tech.description ?? ''}`,
+        isDone ? '已研发' : '未研发',
+      ),
+    );
+  }
+  techSection.append(techList);
+  columns.append(techSection);
+
+  // Commander panel
+  const commanderSection = overviewSection('将领');
+  const commanderList = createElement('ul', 'overview-list');
+  for (const commander of player.commanders ?? []) {
+    const city = commander.cityId === null ? '未派驻' : cityDisplayName(commander.cityId);
+    commanderList.append(
+      overviewListItem(
+        `${commander.name} · ${commanderTraitName(balance, commander.trait)} Lv.${commander.level}`,
+        city,
+      ),
+    );
+  }
+  if ((player.commanders ?? []).length === 0) {
+    commanderList.append(createElement('li', 'muted', '暂无将领'));
+  }
+  commanderSection.append(commanderList);
+  columns.append(commanderSection);
+
+  // Objective / special sites
+  const objectiveSection = overviewSection('战略据点');
+  const objectiveList = createElement('ul', 'overview-list');
+  for (const site of specialSites) {
+    const city = cities[site.cityId];
+    const owner =
+      city?.owner === null || city?.owner === undefined
+        ? '中立'
+        : city.owner === playerId
+          ? '我方'
+          : playersById.get(city.owner)?.name ?? `玩家 ${city.owner}`;
+    objectiveList.append(
+      overviewListItem(
+        `${specialDisplayName(site.type)} · ${cityDisplayName(site.cityId)}`,
+        owner,
+      ),
+    );
+  }
+  if (specialSites.length === 0) {
+    objectiveList.append(createElement('li', 'muted', '本图没有战略据点'));
+  }
+  objectiveSection.append(objectiveList);
+  columns.append(objectiveSection);
+
+  // Diplomacy + events
+  const infoSection = overviewSection('外交与事件');
+  const infoList = createElement('ul', 'overview-list');
+  for (const other of snapshot.players) {
+    if (other.id === playerId) continue;
+    const status = relationBetween(snapshot, playerId, other.id);
+    infoList.append(
+      overviewListItem(`${other.name}${other.isAI ? ' · AI' : ''}`, relationStatusLabel(status)),
+    );
+  }
+  const recentEvents = (snapshot.events ?? []).slice(-4).reverse();
+  const eventNames = {
+    captured: '占领城市',
+    battle: '战斗',
+    worldEvent: '世界事件',
+    coalition: '反制联盟',
+    wave: '叛军来袭',
+    upgraded: '城市升级',
+    starvation: '饥荒',
+    diplomacy: '外交变化',
+  };
+  for (const event of recentEvents) {
+    const name = event.name ?? eventNames[event.type] ?? event.type;
+    const detail = event.description ?? event.cityName ?? '';
+    infoList.append(overviewListItem(`事件：${name}`, detail));
+  }
+  if (infoList.children.length === 0) {
+    infoList.append(createElement('li', 'muted', '暂无信息'));
+  }
+  infoSection.append(infoList);
+  columns.append(infoSection);
+
+  overviewBody.append(columns);
+
+  // Cities table
+  const toolbar = createElement('div', 'overview-toolbar');
+  toolbar.append(createElement('h3', '', '城市状态'));
+  const filters = createElement('div', 'overview-filters');
+  const filterOptions = [
+    ['mine', '我的城市'],
+    ['all', '全部城市'],
+    ['special', '战略据点'],
+    ['enemy', '敌方城市'],
+  ];
+  for (const [filterId, label] of filterOptions) {
+    const button = createElement('button', 'overview-filter', label);
+    button.type = 'button';
+    if (overviewFilter === filterId) button.classList.add('is-active');
+    button.addEventListener('click', () => {
+      overviewFilter = filterId;
+      renderOverview();
+    });
+    filters.append(button);
+  }
+  toolbar.append(filters);
+  overviewBody.append(toolbar);
+
+  let visibleCities = cities;
+  if (overviewFilter === 'mine') {
+    visibleCities = cities.filter((city) => city.owner === playerId);
+  } else if (overviewFilter === 'enemy') {
+    visibleCities = cities.filter(
+      (city) => city.owner !== null && city.owner !== playerId,
+    );
+  } else if (overviewFilter === 'special') {
+    visibleCities = cities.filter((city) => city.special);
+  }
+  visibleCities = [...visibleCities].sort((a, b) => {
+    const rank = (city) =>
+      city.owner === playerId ? 0 : city.owner === null ? 2 : 1;
+    return rank(a) - rank(b) || b.garrison - a.garrison || a.id - b.id;
+  });
+
+  const tableWrap = createElement('div', 'overview-table-wrap');
+  const table = createElement('table', 'overview-table');
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const label of [
+    '城市',
+    '归属',
+    'Lv',
+    '驻军',
+    '兵种',
+    '专精',
+    '据点',
+    '建筑',
+    '将领',
+  ]) {
+    headRow.append(createElement('th', '', label));
+  }
+  head.append(headRow);
+  const body = document.createElement('tbody');
+  for (const city of visibleCities) {
+    const row = document.createElement('tr');
+    if (city.owner === playerId) row.classList.add('is-mine');
+    const owner =
+      city.owner === null
+        ? { name: '中立', color: '#b5b5b5' }
+        : playersById.get(city.owner) ?? {
+            name: `玩家 ${city.owner}`,
+            color: '#6f6f6f',
+          };
+    const nameCell = document.createElement('td');
+    nameCell.textContent = cityDisplayName(city.id);
+    if (city.special) {
+      const badge = createElement(
+        'span',
+        'owner-dot',
+      );
+      badge.style.background = '#b08a2e';
+      nameCell.prepend(badge);
+    }
+    const ownerCell = document.createElement('td');
+    const dot = createElement('span', 'owner-dot');
+    dot.style.background = owner.color ?? '#6f6f6f';
+    ownerCell.append(dot, document.createTextNode(owner.name));
+    const units = city.units ?? {};
+    const commander = (playersById.get(city.owner)?.commanders ?? []).find(
+      (entry) => entry.id === city.commanderId,
+    );
+    const cells = [
+      nameCell,
+      ownerCell,
+      String(city.level),
+      String(city.garrison),
+      `步 ${units.infantry ?? 0} · 骑 ${units.cavalry ?? 0} · 械 ${units.siege ?? 0}`,
+      city.focus ? focusDisplayName(city.focus) : '—',
+      city.special ? specialDisplayName(city.special) : '—',
+      (city.buildings ?? []).map(buildingDisplayName).join('、') || '—',
+      commander?.name ?? '—',
+    ];
+    for (const [index, value] of cells.entries()) {
+      if (index === 0 || index === 1) {
+        row.append(value);
+      } else {
+        const cell = createElement('td', '', value);
+        if (value === '—') cell.classList.add('muted');
+        row.append(cell);
+      }
+    }
+    row.addEventListener('click', () => {
+      toggleOverview(false);
+      selectedId = city.id;
+      renderPanel();
+      requestDraw();
+    });
+    body.append(row);
+  }
+  table.append(head, body);
+  tableWrap.append(table);
+  overviewBody.append(tableWrap);
+
+  if (visibleCities.length === 0) {
+    overviewBody.append(createElement('p', 'overview-empty', '这个分类下暂时没有城市。'));
+  }
+}
+
+function toggleOverview(force) {
+  const next = typeof force === 'boolean' ? force : !overviewOpen;
+  overviewOpen = next;
+  overviewElement.classList.toggle('hidden', !next);
+  overviewElement.setAttribute('aria-hidden', String(!next));
+  if (next) {
+    overviewLastRender = performance.now();
+    renderOverview();
+    overviewClose.focus({ preventScroll: true });
+  } else {
+    overviewButton.focus({ preventScroll: true });
+  }
 }
 
 function updateHud() {
@@ -1358,6 +1743,25 @@ if (tutorialMode) {
     window.location.href = '/';
   });
 }
+
+overviewButton.addEventListener('click', () => toggleOverview());
+overviewClose.addEventListener('click', () => toggleOverview(false));
+window.addEventListener('keydown', (event) => {
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    target.closest('input, textarea, select')
+  ) {
+    return;
+  }
+  if (event.key === 'Tab') {
+    event.preventDefault();
+    toggleOverview();
+  } else if (event.key === 'Escape' && overviewOpen) {
+    event.preventDefault();
+    toggleOverview(false);
+  }
+});
 
 pauseButton.addEventListener('click', () => setPaused(!paused));
 

@@ -144,7 +144,6 @@ export function createMatch(map, balance, options = {}) {
       units: { infantry: garrison, cavalry: 0, siege: 0 },
       buildings: [],
       special: city.special ?? null,
-      focus: city.focus ?? null,
       focus: null,
       upgrading: null,
       terrain: city.terrain,
@@ -245,6 +244,7 @@ export function snapshot(state) {
       },
       buildings: [...(city.buildings ?? [])],
       special: city.special ?? null,
+      focus: city.focus ?? null,
       commanderId:
         city.owner === null
           ? null
