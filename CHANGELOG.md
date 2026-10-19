@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-19
+
+### Added
+
+- 动效：占领扩散波纹、战斗红色脉冲、行军箭头与进度点
+- 玩法说明页 `/help.html`（目标/操作/资源/兵种/科技/建筑/外交/单机多人）
+- `/healthz` 健康检查（版本、房间数、在线玩家）
+- Dockerfile、`.dockerignore`、`docs/DEPLOY.md`（Nginx WebSocket/HTTPS、systemd、Docker）
+- `npm start` 生产启动脚本
+
+### Changed
+
+- 主页「玩法说明」改为打开帮助页
+- 版本号进入 1.0.0，全部里程碑（M0–M6）完成
+
 ## [0.6.0] - 2026-10-19
 
 ### Added

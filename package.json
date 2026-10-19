@@ -1,6 +1,6 @@
 {
   "name": "wars-on-paper",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Wars on Paper — real-time territory conquest game for the web",
@@ -12,7 +12,8 @@
     "dev": "node src/server/dev.js",
     "server": "node src/server/server.js",
     "test": "node --test tests/*.test.js",
-    "bench": "node tools/bench.mjs"
+    "bench": "node tools/bench.mjs",
+    "start": "node src/server/server.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
