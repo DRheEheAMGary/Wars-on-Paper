@@ -562,5 +562,36 @@
   "trade": {
     "goldPerLinkedCity": 0.25,
     "maxLinks": 3
+  },
+  "worldEvents": {
+    "firstDelaySeconds": 75,
+    "intervalSeconds": 90,
+    "events": [
+      {
+        "id": "harvest",
+        "name": "丰收",
+        "description": "所有玩家获得 60 粮食"
+      },
+      {
+        "id": "levy",
+        "name": "征兵令",
+        "description": "每位玩家最大城市获得 10 步兵"
+      },
+      {
+        "id": "plague",
+        "name": "瘟疫",
+        "description": "领先者最大城市损失 15% 驻军"
+      },
+      {
+        "id": "windfall",
+        "name": "意外之财",
+        "description": "落后玩家获得 120 金币"
+      }
+    ]
+  },
+  "antiSnowball": {
+    "coalitionLead": 4,
+    "coalitionScoreRatio": 1.5,
+    "catchUpGold": 0.25
   }
 }

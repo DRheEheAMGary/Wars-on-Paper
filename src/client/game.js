@@ -438,6 +438,10 @@ function handleEvents(events) {
       showToast(
         `${name} 战斗：损失 ${event.attackerLoss}，歼敌 ${event.defenderLoss}`,
       );
+    } else if (event.type === 'worldEvent') {
+      showToast(`【${event.name}】${event.description}`);
+    } else if (event.type === 'coalition') {
+      showToast('AI 结成反制联盟，共同对抗领先者');
     } else if (event.type === 'diplomacy') {
       if (event.a === myPlayerId || event.b === myPlayerId) {
         const otherId = event.a === myPlayerId ? event.b : event.a;

@@ -172,6 +172,7 @@ export function createMatch(map, balance, options = {}) {
     matchSeconds: options.matchSeconds ?? balance.matchSeconds,
     aiProfile: options.aiProfile ?? null,
     wave: 0,
+    nextEventTick: Math.round(((balance.worldEvents?.firstDelaySeconds ?? 75) * 1000) / balance.tickMs),
     nextWaveTick: Math.round(((balance.endless?.firstWaveSeconds ?? 45) * 1000) / balance.tickMs),
     spawnContinent: players[0]?.startContinent ?? 0,
     capital: humanSpawn?.capital ?? 0,

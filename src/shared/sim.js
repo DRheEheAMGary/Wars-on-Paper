@@ -15,13 +15,11 @@ import {
   commanderEffects,
   grantCommanderXp,
 } from './commanders.js';
-import {
-  isBlocked,
-  isFriendly,
-} from './diplomacy.js';
+import { isBlocked, isFriendly, setRelation } from './diplomacy.js';
 import {
   ensureCityUnits,
   mergeUnits,
+  removeUnits,
   splitUnits,
   syncCityGarrison,
   totalUnits,
@@ -82,6 +80,61 @@ function ownedSpecialSites(state, balance, playerId) {
     if (city.owner === playerId && city.special) count += 1;
   }
   return count;
+}
+
+function triggerWorldEvent(state, balance) {
+  const config = balance.worldEvents;
+  if (!config) return;
+  const events = config.events ?? [];
+  if (events.length === 0) return;
+  const index = Math.floor(nextStateRandom(state) * events.length);
+  const event = events[index];
+  const leader = [...state.players].sort((a, b) => b.cityCount - a.cityCount || b.score - a.score)[0];
+  const trailing = [...state.players].sort((a, b) => a.cityCount - b.cityCount)[0];
+  if (event.id === 'harvest') {
+    for (const player of state.players) player.food += 60;
+  } else if (event.id === 'levy') {
+    for (const player of state.players) {
+      const city = state.cities.filter((entry) => entry.owner === player.id).sort((a, b) => b.garrison - a.garrison)[0];
+      if (city) {
+        ensureCityUnits(city);
+        city.units.infantry += 10;
+        syncCityGarrison(city);
+      }
+    }
+  } else if (event.id === 'plague' && leader) {
+    const city = state.cities.filter((entry) => entry.owner === leader.id).sort((a, b) => b.garrison - a.garrison)[0];
+    if (city) {
+      ensureCityUnits(city);
+      const loss = Math.max(1, Math.round(totalUnits(city.units) * 0.15));
+      city.units = removeUnits(city.units, loss).remaining;
+      syncCityGarrison(city);
+    }
+  } else if (event.id === 'windfall' && trailing) {
+    trailing.gold += 120;
+  }
+  state.events.push({ type: 'worldEvent', eventId: event.id, name: event.name, description: event.description });
+  state.nextEventTick = state.tick + Math.round(((config.intervalSeconds ?? 90) * 1000) / balance.tickMs);
+}
+
+function updateCoalition(state, balance) {
+  if (state.multiplayer || state.coalition) return;
+  const human = state.players[0];
+  const ais = state.players.filter((player) => player.isAI);
+  if (!human || ais.length === 0) return;
+  const maxAI = Math.max(...ais.map((player) => player.cityCount));
+  const config = balance.antiSnowball ?? {};
+  const humanLeads =
+    human.cityCount >= maxAI + (config.coalitionLead ?? 4) ||
+    human.score >= (Math.max(...state.players.filter((p) => p.id !== 0).map((p) => p.score), 0) || 1) * (config.coalitionScoreRatio ?? 1.5);
+  if (!humanLeads) return;
+  state.coalition = true;
+  for (let a = 0; a < ais.length; a += 1) {
+    for (let b = a + 1; b < ais.length; b += 1) {
+      setRelation(state, ais[a].id, ais[b].id, 'ally');
+    }
+  }
+  state.events.push({ type: 'coalition', name: '反制联盟', description: 'AI 结成联盟共同对抗领先者' });
 }
 
 /**
@@ -813,6 +866,10 @@ export function step(state, balance, commands) {
   }
   state.armies = remaining;
 
+  if (state.mode !== 'tutorial' && state.tick >= (state.nextEventTick ?? Infinity)) {
+    triggerWorldEvent(state, balance);
+  }
+  updateCoalition(state, balance);
   runDiplomacy(state, balance);
   runAI(state, balance);
   tickEconomy(state, balance);

@@ -68,10 +68,16 @@ export function tickEconomy(state, balance) {
       if (city.owner !== player.id) continue;
       const config = levelConfig(balance, city.level);
       const focus = balance.cityFocus?.[city.focus] ?? null;
+      const human = state.players[0];
+      const catchingUp =
+        player.isAI && human && human.cityCount > player.cityCount + 2;
+      const catchUpMultiplier = catchingUp
+        ? 1 + (balance.antiSnowball?.catchUpGold ?? 0.25)
+        : 1;
       const difficultyMultiplier =
-        player.isAI && state.aiProfile?.aiGoldMultiplier
+        (player.isAI && state.aiProfile?.aiGoldMultiplier
           ? state.aiProfile.aiGoldMultiplier
-          : 1;
+          : 1) * catchUpMultiplier;
       const buildings = buildingEffects(balance, city);
       const governor = commanderAtCity(player, city.id);
       const governorBonus = commanderEffects(governor, balance);
