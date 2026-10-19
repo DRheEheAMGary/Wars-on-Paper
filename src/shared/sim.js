@@ -19,6 +19,7 @@ import {
   mergeUnits,
   syncCityGarrison,
   totalUnits,
+  unitTravelSeconds,
 } from './units.js';
 
 /**
@@ -87,6 +88,35 @@ function checkEnd(state, balance) {
     if (state.tick >= matchTicks) {
       state.phase = 'ended';
       state.result = { outcome: 'ended', winner: null, ranking: ranking(state) };
+    }
+    return;
+  }
+
+  if (state.mode === 'endless') {
+    if (human.cityCount === 0) {
+      state.phase = 'lost';
+      state.result = {
+        outcome: 'lost',
+        mode: 'endless',
+        wave: state.wave ?? 0,
+        score: human.score,
+        cities: 0,
+        kills: human.kills,
+        ranking: ranking(state),
+      };
+      return;
+    }
+    if (human.cityCount >= totalCities) {
+      state.phase = 'won';
+      state.result = {
+        outcome: 'won',
+        mode: 'endless',
+        wave: state.wave ?? 0,
+        score: human.score,
+        cities: human.cityCount,
+        kills: human.kills,
+        ranking: ranking(state),
+      };
     }
     return;
   }
@@ -315,6 +345,69 @@ function aiAct(state, balance, player) {
 }
 
 /**
+ * Spawn an escalating wave of rebel armies that attacks any owned city.
+ * @param {any} state
+ * @param {any} balance
+ */
+function spawnWave(state, balance) {
+  const config = balance.endless;
+  if (!config) return;
+  state.wave = (state.wave ?? 0) + 1;
+  const interval = Math.max(
+    config.minWaveIntervalSeconds,
+    config.waveIntervalSeconds - (state.wave - 1) * config.intervalDecaySeconds,
+  );
+  state.nextWaveTick = state.tick + Math.round((interval * 1000) / balance.tickMs);
+
+  const owned = state.cities.filter((/** @type {any} */ city) => city.owner !== null);
+  if (owned.length === 0) return;
+  const neutral = state.cities.filter((/** @type {any} */ city) => city.owner === null);
+  if (neutral.length === 0) return;
+
+  const armyCount = Math.min(
+    config.maxArmiesPerWave ?? 6,
+    (config.armiesBase ?? 1) + Math.floor(state.wave / (config.armiesPerWaveStep ?? 2)),
+  );
+  const totalSoldiers = config.baseSoldiers + state.wave * config.soldiersPerWave;
+
+  for (let index = 0; index < armyCount; index += 1) {
+    const target = owned[Math.floor(nextStateRandom(state) * owned.length)];
+    const source =
+      neutral[Math.floor(nextStateRandom(state) * neutral.length)] ??
+      state.cities[Math.floor(nextStateRandom(state) * state.cities.length)];
+    if (!target || !source || target.id === source.id) continue;
+
+    const siegeCount =
+      state.wave >= (config.siegeFromWave ?? 99)
+        ? Math.max(1, Math.round(totalSoldiers * 0.05))
+        : 0;
+    const cavalryCount =
+      state.wave >= (config.cavalryFromWave ?? 99)
+        ? Math.round(totalSoldiers * 0.2)
+        : 0;
+    const infantryCount = Math.max(1, totalSoldiers - cavalryCount - siegeCount);
+    const units = { infantry: infantryCount, cavalry: cavalryCount, siege: siegeCount };
+    const travelTicks = Math.round(
+      (unitTravelSeconds(units, balance) * 1000) / balance.tickMs,
+    );
+    state.armies.push({
+      id: state.nextArmyId,
+      owner: -1,
+      fromCity: source.id,
+      toCity: target.id,
+      soldiers: totalUnits(units),
+      units,
+      departTick: state.tick,
+      arriveTick: state.tick + travelTicks,
+      sea: false,
+      rebel: true,
+    });
+    state.nextArmyId += 1;
+  }
+  state.events.push({ type: 'wave', wave: state.wave, armies: armyCount });
+}
+
+/**
  * Expire old diplomacy offers and let AI players answer requests.
  * @param {any} state
  * @param {any} balance
@@ -344,11 +437,18 @@ function runDiplomacy(state, balance) {
  * @param {any} balance
  */
 function runAI(state, balance) {
-  const thinkTicks = state.aiProfile?.aiThinkTicks ?? balance.ai?.thinkTicks ?? 12;
+  const profile = state.aiProfile ?? {};
+  const thinkTicks = profile.aiThinkTicks ?? balance.ai?.thinkTicks ?? 12;
+  const actionsPerThink = profile.aiActionsPerThink ?? 1;
+  const startDelayTicks = Math.round((profile.aiStartDelaySeconds ?? 0) * 10);
   for (const player of state.players) {
     if (!player.isAI || player.cityCount === 0) continue;
+    if (state.tick < startDelayTicks) continue;
     if ((state.tick + player.id * 3) % thinkTicks !== 0) continue;
-    aiAct(state, balance, player);
+    for (let action = 0; action < actionsPerThink; action += 1) {
+      if (player.cityCount === 0) break;
+      aiAct(state, balance, player);
+    }
   }
 }
 
@@ -363,6 +463,12 @@ export function step(state, balance, commands) {
   if (state.phase !== 'playing') return state;
   state.tick += 1;
   state.events = [];
+  if (
+    state.mode === 'endless' &&
+    state.tick >= (state.nextWaveTick ?? Infinity)
+  ) {
+    spawnWave(state, balance);
+  }
 
   for (const command of commands) {
     const result = applyCommand(state, balance, command);
@@ -378,10 +484,43 @@ export function step(state, balance, commands) {
     }
 
     const target = state.cities[army.toCity];
-    const attacker = state.players[army.owner];
-    if (!target || !attacker) continue;
+    if (!target) continue;
 
     ensureCityUnits(target);
+    if (army.owner === -1) {
+      if (target.owner === null) continue;
+      const rebelDefense = buildingEffects(balance, target).defense;
+      const battle = resolveBattle(
+        army.units,
+        target,
+        balance,
+        () => nextStateRandom(state),
+        { defenderDefense: rebelDefense },
+      );
+      if (battle.captured) {
+        target.owner = null;
+        target.units = battle.attackerRemaining;
+        syncCityGarrison(target);
+        target.level = Math.max(1, target.level - balance.captureLevelLoss);
+        target.upgrading = null;
+        state.events.push({
+          type: 'rebelCapture',
+          cityId: target.id,
+          wave: state.wave,
+        });
+      } else {
+        target.units = battle.defenderRemaining;
+        syncCityGarrison(target);
+        state.events.push({
+          type: 'rebelAttack',
+          cityId: target.id,
+          wave: state.wave,
+        });
+      }
+      continue;
+    }
+    const attacker = state.players[army.owner];
+    if (!attacker) continue;
     if (target.owner === army.owner) {
       target.units = mergeUnits(target.units, army.units);
       syncCityGarrison(target);

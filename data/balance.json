@@ -251,19 +251,25 @@
       "label": "简单",
       "aiThinkTicks": 20,
       "aiAttackOdds": 0.68,
-      "aiGoldMultiplier": 0.75
+      "aiGoldMultiplier": 0.75,
+      "aiActionsPerThink": 1,
+      "aiStartDelaySeconds": 10
     },
     "normal": {
       "label": "普通",
       "aiThinkTicks": 12,
       "aiAttackOdds": 0.58,
-      "aiGoldMultiplier": 1.0
+      "aiGoldMultiplier": 1.0,
+      "aiActionsPerThink": 1,
+      "aiStartDelaySeconds": 6
     },
     "hard": {
       "label": "困难",
       "aiThinkTicks": 8,
       "aiAttackOdds": 0.5,
-      "aiGoldMultiplier": 1.3
+      "aiGoldMultiplier": 1.3,
+      "aiActionsPerThink": 2,
+      "aiStartDelaySeconds": 3
     }
   },
   "units": {
@@ -355,5 +361,18 @@
     "betraySeconds": 60,
     "betrayPenalty": 0.1,
     "aiAcceptChance": 0.6
+  },
+  "endless": {
+    "firstWaveSeconds": 40,
+    "waveIntervalSeconds": 45,
+    "minWaveIntervalSeconds": 18,
+    "intervalDecaySeconds": 3,
+    "baseSoldiers": 24,
+    "soldiersPerWave": 10,
+    "armiesBase": 1,
+    "armiesPerWaveStep": 2,
+    "maxArmiesPerWave": 6,
+    "cavalryFromWave": 3,
+    "siegeFromWave": 5
   }
 }

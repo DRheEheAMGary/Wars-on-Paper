@@ -37,6 +37,7 @@ function tracePolygon(ctx, polygon) {
  * @returns {string}
  */
 function ownerColor(state, owner) {
+  if (owner === null || owner === undefined || owner < 0) return '#5f5f5f';
   return state.players[owner]?.color ?? '#d24a35';
 }
 

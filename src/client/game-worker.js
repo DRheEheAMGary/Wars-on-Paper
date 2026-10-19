@@ -58,6 +58,7 @@ self.onmessage = (event) => {
       aiCount: message.config.aiCount,
       matchSeconds: message.config.matchSeconds,
       aiProfile: message.config.aiProfile,
+      mode: message.config.mode,
     });
     self.postMessage({ type: 'init', map, snapshot: snapshot(state) });
     startTimer();

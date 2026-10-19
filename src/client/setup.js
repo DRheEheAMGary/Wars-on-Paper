@@ -14,6 +14,7 @@ const citiesSelect = /** @type {HTMLSelectElement} */ (document.getElementById('
 const aiSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-ai'));
 const difficultyGroup = /** @type {HTMLElement} */ (document.getElementById('setup-difficulty'));
 const minutesSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-minutes'));
+const modeSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-mode'));
 const form = /** @type {HTMLFormElement} */ (document.getElementById('setup-form'));
 const randomSeedButton = /** @type {HTMLButtonElement} */ (document.getElementById('setup-random-seed'));
 
@@ -99,6 +100,15 @@ function populate(balance) {
   minutesSelect.value = String(
     minuteValues.includes(requestedMinutes) ? requestedMinutes : DEFAULT_MINUTES,
   );
+
+  modeSelect.value = params.get('mode') === 'endless' ? 'endless' : 'timed';
+  syncMode();
+}
+
+function syncMode() {
+  const endless = modeSelect.value === 'endless';
+  minutesSelect.disabled = endless;
+  minutesSelect.closest('.setup-row')?.classList.toggle('is-disabled', endless);
 }
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' })
@@ -110,6 +120,8 @@ populate(balance);
 randomSeedButton.addEventListener('click', () => {
   seedInput.value = String(randomSeed());
 });
+
+modeSelect.addEventListener('change', syncMode);
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -128,6 +140,7 @@ form.addEventListener('submit', (event) => {
     ai: String(ai),
     difficulty,
     minutes: String(minutes),
+    mode: modeSelect.value,
   });
   window.location.href = `/game.html?${query.toString()}`;
 });

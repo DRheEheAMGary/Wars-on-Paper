@@ -60,6 +60,7 @@ const cityCount = CITY_COUNTS.has(requestedCities) ? requestedCities : 160;
 const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000);
 const roomCode = params.get('room') ?? '';
 const isMultiplayer = Boolean(roomCode);
+const gameMode = params.get('mode') === 'endless' ? 'endless' : 'timed';
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
@@ -85,6 +86,7 @@ const startQuery = new URLSearchParams({
   ai: String(aiCount),
   difficulty: difficultyId,
   minutes: String(Math.round(matchSeconds / 60)),
+  mode: gameMode,
 });
 
 /** @type {any} */
@@ -249,6 +251,7 @@ if (isMultiplayer) {
       aiCount,
       matchSeconds,
       aiProfile: difficulty,
+      mode: gameMode,
     },
     balance,
   });
@@ -279,11 +282,19 @@ function updateHud() {
   statFood.textContent = String(Math.floor(player.food));
   statCities.textContent = String(player.cityCount);
   statScore.textContent = String(player.score);
-  const elapsed = Math.floor((snapshot.tick * balance.tickMs) / 1000);
-  const remaining = Math.max(0, (snapshot.matchSeconds ?? balance.matchSeconds) - elapsed);
-  const minutes = Math.floor(remaining / 60);
-  const seconds = String(remaining % 60).padStart(2, '0');
-  statTimer.textContent = `${minutes}:${seconds}`;
+  if (snapshot.mode === 'endless') {
+    const nextIn = Math.max(
+      0,
+      Math.round((snapshot.nextWaveTick - snapshot.tick) / 10),
+    );
+    statTimer.textContent = `第 ${snapshot.wave ?? 0} 波 · 下一波 ${nextIn}s`;
+  } else {
+    const elapsed = Math.floor((snapshot.tick * balance.tickMs) / 1000);
+    const remaining = Math.max(0, (snapshot.matchSeconds ?? balance.matchSeconds) - elapsed);
+    const minutes = Math.floor(remaining / 60);
+    const seconds = String(remaining % 60).padStart(2, '0');
+    statTimer.textContent = `${minutes}:${seconds}`;
+  }
 
   standingsElement.replaceChildren();
   for (const player of snapshot.players) {
@@ -712,7 +723,18 @@ function showResult() {
   const result = snapshot.result;
   const ranking = result.ranking ?? [];
 
-  if (isMultiplayer) {
+  if (!isMultiplayer && snapshot.mode === 'endless') {
+    const wave = snapshot.result.wave ?? 0;
+    const best = Math.max(
+      Number(window.localStorage.getItem('wop-endless-best') ?? 0),
+      wave,
+    );
+    window.localStorage.setItem('wop-endless-best', String(best));
+    resultTitle.textContent =
+      snapshot.result.outcome === 'won' ? '无尽胜利' : '无尽结束';
+    resultDetail.textContent =
+      `生存 ${wave} 波 · 分数 ${snapshot.result.score} · 历史最佳 ${best} 波`;
+  } else if (isMultiplayer) {
     const myEntry = ranking.find((entry) => entry.id === myPlayerId);
     const myRank = myEntry ? ranking.indexOf(myEntry) + 1 : null;
     if (result.outcome === 'victory') {
@@ -1012,7 +1034,8 @@ function setPaused(next) {
   pauseMenu.classList.toggle('hidden', !paused);
   if (paused) {
     pauseDetail.textContent =
-      `${difficulty?.label ?? '普通'}难度 · ${Math.round(matchSeconds / 60)} 分钟 · ` +
+      `${difficulty?.label ?? '普通'}难度 · ` +
+      `${gameMode === 'endless' ? '无尽模式' : `${Math.round(matchSeconds / 60)} 分钟`} · ` +
       `种子 ${seed}`;
   }
 }

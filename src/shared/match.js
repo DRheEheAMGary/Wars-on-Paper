@@ -49,7 +49,7 @@ export function pickSpawnOnContinent(map, continent, count, used) {
  * Create a deterministic match state with a human player and AI opponents.
  * @param {import('./mapgen.js').GameMap} map
  * @param {any} balance
- * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any }} [options]
+ * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any, mode?: 'timed' | 'endless' }} [options]
  * @returns {any}
  */
 export function createMatch(map, balance, options = {}) {
@@ -137,8 +137,11 @@ export function createMatch(map, balance, options = {}) {
     seed,
     tick: 0,
     phase: 'playing',
+    mode: options.mode ?? 'timed',
     matchSeconds: options.matchSeconds ?? balance.matchSeconds,
     aiProfile: options.aiProfile ?? null,
+    wave: 0,
+    nextWaveTick: Math.round(((balance.endless?.firstWaveSeconds ?? 45) * 1000) / balance.tickMs),
     spawnContinent: players[0]?.startContinent ?? 0,
     capital: humanSpawn?.capital ?? 0,
     rngState: hashSeed(`${seed}:match`),
@@ -165,6 +168,9 @@ export function snapshot(state) {
     tick: state.tick,
     phase: state.phase,
     multiplayer: Boolean(state.multiplayer),
+    mode: state.mode ?? 'timed',
+    wave: state.wave ?? 0,
+    nextWaveTick: state.nextWaveTick ?? 0,
     matchSeconds: state.matchSeconds,
     players: state.players.map((/** @type {any} */ player) => ({
       ...player,
