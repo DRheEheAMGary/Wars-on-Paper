@@ -34,29 +34,135 @@
   },
   "research": [
     {
-      "id": "economy",
+      "id": "drill",
+      "branch": "military",
+      "tier": 1,
+      "name": "操练",
+      "description": "+10% 攻击",
+      "costGold": 200,
+      "researchSeconds": 15,
+      "requires": [],
+      "effects": {
+        "attack": 0.1
+      }
+    },
+    {
+      "id": "armor",
+      "branch": "military",
+      "tier": 2,
+      "name": "甲胄",
+      "description": "+15% 防御",
+      "costGold": 500,
+      "researchSeconds": 30,
+      "requires": [
+        "drill"
+      ],
+      "effects": {
+        "defense": 0.15
+      }
+    },
+    {
+      "id": "tactics",
+      "branch": "military",
+      "tier": 3,
+      "name": "战术",
+      "description": "行军 −20%",
+      "costGold": 1200,
+      "researchSeconds": 60,
+      "requires": [
+        "armor"
+      ],
+      "effects": {
+        "travel": 0.2
+      }
+    },
+    {
+      "id": "tax",
+      "branch": "economy",
+      "tier": 1,
       "name": "税制",
       "description": "+20% 金币",
-      "costGold": 180
+      "costGold": 200,
+      "researchSeconds": 15,
+      "requires": [],
+      "effects": {
+        "gold": 0.2
+      }
     },
     {
-      "id": "military",
-      "name": "操练",
-      "description": "+15% 攻击",
-      "costGold": 220
+      "id": "granary",
+      "branch": "economy",
+      "tier": 2,
+      "name": "仓储",
+      "description": "+30% 粮食",
+      "costGold": 500,
+      "researchSeconds": 30,
+      "requires": [
+        "tax"
+      ],
+      "effects": {
+        "food": 0.3
+      }
     },
     {
-      "id": "logistics",
+      "id": "census",
+      "branch": "economy",
+      "tier": 3,
+      "name": "人口",
+      "description": "+25% 人口上限",
+      "costGold": 1200,
+      "researchSeconds": 60,
+      "requires": [
+        "granary"
+      ],
+      "effects": {
+        "populationCap": 0.25
+      }
+    },
+    {
+      "id": "roads",
+      "branch": "expansion",
+      "tier": 1,
       "name": "筑路",
-      "description": "行军时间 -25%",
-      "costGold": 200
+      "description": "连城行军 −15%",
+      "costGold": 200,
+      "researchSeconds": 15,
+      "requires": [],
+      "effects": {
+        "travel": 0.15
+      }
+    },
+    {
+      "id": "siegecraft",
+      "branch": "expansion",
+      "tier": 2,
+      "name": "攻城",
+      "description": "攻城车对城 ×1.3",
+      "costGold": 500,
+      "researchSeconds": 30,
+      "requires": [
+        "roads"
+      ],
+      "effects": {
+        "siege": 0.3
+      }
+    },
+    {
+      "id": "prestige",
+      "branch": "expansion",
+      "tier": 3,
+      "name": "声望",
+      "description": "占领后保留驻军 +10%",
+      "costGold": 1200,
+      "researchSeconds": 60,
+      "requires": [
+        "siegecraft"
+      ],
+      "effects": {
+        "captureGarrison": 0.1
+      }
     }
   ],
-  "researchEffects": {
-    "economy": 0.2,
-    "military": 0.15,
-    "logistics": 0.25
-  },
   "playerColors": [
     "#d24a35",
     "#2f6f9f",
@@ -159,5 +265,48 @@
       "aiAttackOdds": 0.5,
       "aiGoldMultiplier": 1.3
     }
-  }
+  },
+  "units": {
+    "infantry": {
+      "name": "步兵",
+      "attack": 10,
+      "defense": 10,
+      "travelSeconds": 8,
+      "costGold": 6,
+      "costPopulation": 1,
+      "batch": 10,
+      "counters": {
+        "siege": 0.5
+      }
+    },
+    "cavalry": {
+      "name": "骑兵",
+      "attack": 16,
+      "defense": 6,
+      "travelSeconds": 4,
+      "costGold": 14,
+      "costPopulation": 2,
+      "batch": 5,
+      "counters": {
+        "infantry": 0.5
+      }
+    },
+    "siege": {
+      "name": "攻城车",
+      "attack": 8,
+      "defense": 4,
+      "travelSeconds": 12,
+      "costGold": 28,
+      "costPopulation": 4,
+      "batch": 3,
+      "counters": {
+        "wall": 1.5
+      }
+    }
+  },
+  "unitOrder": [
+    "infantry",
+    "cavalry",
+    "siege"
+  ]
 }

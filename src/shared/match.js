@@ -103,6 +103,7 @@ export function createMatch(map, balance, options = {}) {
       startContinent: spawn.continent,
       isAI: index > 0,
       tech: {},
+      research: null,
     }));
 
   /** @type {any[]} */
@@ -112,6 +113,8 @@ export function createMatch(map, balance, options = {}) {
     level: 1,
     population: balance.startPopulation,
     garrison: balance.neutralGarrison,
+    units: { infantry: balance.neutralGarrison, cavalry: 0, siege: 0 },
+    buildings: [],
     upgrading: null,
     terrain: city.terrain,
     continent: city.continent,
@@ -124,6 +127,7 @@ export function createMatch(map, balance, options = {}) {
     for (const id of spawn.cities) {
       cities[id].owner = playerId;
       cities[id].garrison = balance.startSoldiers;
+      cities[id].units = { infantry: balance.startSoldiers, cavalry: 0, siege: 0 };
       cities[id].population = Math.max(cities[id].population, balance.startPopulation);
     }
   });
@@ -160,6 +164,7 @@ export function snapshot(state) {
     players: state.players.map((/** @type {any} */ player) => ({
       ...player,
       tech: { ...player.tech },
+      research: player.research ? { ...player.research } : null,
     })),
     cities: state.cities.map((/** @type {any} */ city) => ({
       id: city.id,
@@ -167,6 +172,12 @@ export function snapshot(state) {
       level: city.level,
       population: Math.floor(city.population),
       garrison: Math.floor(city.garrison),
+      units: {
+        infantry: Math.floor(city.units?.infantry ?? city.garrison ?? 0),
+        cavalry: Math.floor(city.units?.cavalry ?? 0),
+        siege: Math.floor(city.units?.siege ?? 0),
+      },
+      buildings: [...(city.buildings ?? [])],
       upgrading: city.upgrading ? { endsTick: city.upgrading.endsTick } : null,
     })),
     armies: state.armies.map((/** @type {any} */ army) => ({ ...army })),

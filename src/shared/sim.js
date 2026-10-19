@@ -1,13 +1,20 @@
 // @ts-check
 /**
  * The real-time match simulation: player/AI commands, marches, decisive
- * battles, economy, scoring and end conditions.
+ * battles with unit counters, economy, scoring and end conditions.
  */
 
 import { nextStateRandom } from './rng.js';
 import { estimateBattle, resolveBattle } from './combat.js';
 import { applyCommand } from './commands.js';
 import { levelConfig, tickEconomy } from './economy.js';
+import { techEffects, availableTechs } from './tech.js';
+import {
+  ensureCityUnits,
+  mergeUnits,
+  syncCityGarrison,
+  totalUnits,
+} from './units.js';
 
 /**
  * @param {any} state
@@ -20,7 +27,9 @@ function updateStats(state, balance) {
     player.cityCount = cityCount;
     player.alive = cityCount > 0;
     player.score = Math.round(
-      cityCount * balance.scorePerCity + player.kills * balance.scorePerKill,
+      cityCount * balance.scorePerCity +
+        Object.keys(player.tech ?? {}).length * 50 +
+        player.kills * balance.scorePerKill,
     );
   }
 }
@@ -55,7 +64,9 @@ function checkEnd(state, balance) {
   const matchTicks = Math.round(((state.matchSeconds ?? balance.matchSeconds) * 1000) / balance.tickMs);
 
   if (state.multiplayer) {
-    const winner = state.players.find((/** @type {any} */ player) => player.cityCount >= totalCities);
+    const winner = state.players.find(
+      (/** @type {any} */ player) => player.cityCount >= totalCities,
+    );
     if (winner) {
       state.phase = 'ended';
       state.result = {
@@ -70,11 +81,7 @@ function checkEnd(state, balance) {
     }
     if (state.tick >= matchTicks) {
       state.phase = 'ended';
-      state.result = {
-        outcome: 'ended',
-        winner: null,
-        ranking: ranking(state),
-      };
+      state.result = { outcome: 'ended', winner: null, ranking: ranking(state) };
     }
     return;
   }
@@ -111,10 +118,20 @@ function checkEnd(state, balance) {
       score: human.score,
       cities: human.cityCount,
       kills: human.kills,
-      rank: finalRanking.findIndex((entry) => entry.id === 0) + 1,
+      rank: finalRanking.findIndex((/** @type {any} */ entry) => entry.id === 0) + 1,
       ranking: finalRanking,
     };
   }
+}
+
+/** @param {any} balance @param {string} unitType */
+function unitRecruitCost(balance, unitType) {
+  const config = balance.units[unitType];
+  return {
+    gold: config.costGold * config.batch,
+    population: config.costPopulation * config.batch,
+    batch: config.batch,
+  };
 }
 
 /**
@@ -128,26 +145,31 @@ function aiAct(state, balance, player) {
   const random = () => nextStateRandom(state);
   const owned = state.cities.filter((/** @type {any} */ city) => city.owner === player.id);
   if (owned.length === 0) return;
-
   const reserve = balance.ai?.reserveGold ?? 0;
   const attackOdds = state.aiProfile?.aiAttackOdds ?? balance.ai?.attackOdds ?? 0.58;
-  const effects = balance.researchEffects ?? {};
+  const effects = techEffects(player, balance);
 
-  // Research occasionally.
-  for (const tech of balance.research ?? []) {
-    if (player.tech?.[tech.id]) continue;
-    if (player.gold > tech.costGold + reserve * 2 && random() < 0.3) {
-      applyCommand(state, balance, { type: 'research', techId: tech.id, owner: player.id });
+  // Research an available technology.
+  if (!player.research && player.gold > reserve * 2) {
+    const candidates = availableTechs(player, balance).filter(
+      (/** @type {any} */ tech) => player.gold >= tech.costGold + reserve,
+    );
+    if (candidates.length > 0 && random() < 0.35) {
+      const tech = candidates[Math.floor(random() * candidates.length)];
+      applyCommand(state, balance, {
+        type: 'research',
+        techId: tech.id,
+        owner: player.id,
+      });
       return;
     }
   }
 
   // Upgrade a city occasionally.
   const upgradable = owned.filter(
-    (/** @type {any} */ city) =>
-      !city.upgrading && city.level < balance.cityLevels.length,
+    (/** @type {any} */ city) => !city.upgrading && city.level < balance.cityLevels.length,
   );
-  if (upgradable.length > 0 && random() < 0.2) {
+  if (upgradable.length > 0 && random() < 0.18) {
     const city = upgradable[Math.floor(random() * upgradable.length)];
     const config = levelConfig(balance, city.level);
     if (player.gold > config.upgradeGold + reserve) {
@@ -156,16 +178,21 @@ function aiAct(state, balance, player) {
     }
   }
 
-  // Recruit into the most populated city.
-  const recruitCost = balance.soldierCostGold * balance.recruitBatch;
-  const recruitPopulation = balance.soldierCostPopulation * balance.recruitBatch;
-  if (player.gold > recruitCost + reserve) {
+  // Recruit a mix of unit types.
+  const unitTypes = (balance.unitOrder ?? ['infantry']).filter((/** @type {string} */ type) => {
+    const cost = unitRecruitCost(balance, type);
+    return player.gold >= cost.gold + reserve;
+  });
+  if (unitTypes.length > 0 && random() < 0.7) {
+    const unitType = unitTypes[Math.floor(random() * unitTypes.length)];
+    const cost = unitRecruitCost(balance, unitType);
     let recruitCity = null;
     for (const city of owned) {
       const config = levelConfig(balance, city.level);
+      ensureCityUnits(city);
       if (
-        city.population >= recruitPopulation &&
-        city.garrison + balance.recruitBatch <= config.garrisonCap &&
+        city.population >= cost.population &&
+        totalUnits(city.units) + cost.batch <= config.garrisonCap &&
         (!recruitCity || city.population > recruitCity.population)
       ) {
         recruitCity = city;
@@ -175,6 +202,7 @@ function aiAct(state, balance, player) {
       applyCommand(state, balance, {
         type: 'recruit',
         cityId: recruitCity.id,
+        unitType,
         owner: player.id,
       });
       return;
@@ -182,19 +210,25 @@ function aiAct(state, balance, player) {
   }
 
   // Attack the weakest reachable city when the odds look good.
-  const attackerMultiplier = 1 + (player.tech?.military ? effects.military : 0);
   /** @type {{ from: number, to: number, odds: number, soldiers: number } | null} */
   let bestAttack = null;
   for (const city of owned) {
+    ensureCityUnits(city);
     if (city.garrison < 10) continue;
     for (const targetId of [...city.neighbors, ...(city.seaNeighbors ?? [])]) {
       const target = state.cities[targetId];
       if (!target || target.owner === player.id) continue;
+      const defenderTech =
+        target.owner === null ? {} : techEffects(state.players[target.owner], balance);
       const estimate = estimateBattle(
-        city.garrison,
+        city.units,
         target,
         balance,
-        attackerMultiplier,
+        {
+          attackerAttack: effects.attack,
+          defenderDefense: defenderTech.defense,
+          siegeBonus: effects.siege,
+        },
       );
       if (estimate.odds < attackOdds) continue;
       if (!bestAttack || estimate.odds > bestAttack.odds) {
@@ -260,29 +294,48 @@ export function step(state, balance, commands) {
     const attacker = state.players[army.owner];
     if (!target || !attacker) continue;
 
+    ensureCityUnits(target);
     if (target.owner === army.owner) {
-      target.garrison += army.soldiers;
+      target.units = mergeUnits(target.units, army.units);
+      syncCityGarrison(target);
       if (state.multiplayer || army.owner === 0) {
-        state.events.push({ type: 'reinforce', cityId: target.id, soldiers: army.soldiers });
+        state.events.push({
+          type: 'reinforce',
+          cityId: target.id,
+          soldiers: army.soldiers,
+        });
       }
       continue;
     }
 
-    const effects = balance.researchEffects ?? {};
-    const attackerMultiplier = 1 + (attacker.tech?.military ? effects.military : 0);
+    const attackerTech = techEffects(attacker, balance);
+    const defender =
+      target.owner === null ? null : state.players[target.owner];
+    const defenderTech = defender ? techEffects(defender, balance) : {};
     const battle = resolveBattle(
-      army.soldiers,
+      army.units,
       target,
       balance,
       () => nextStateRandom(state),
-      attackerMultiplier,
+      {
+        attackerAttack: attackerTech.attack,
+        defenderDefense: defenderTech.defense ?? 0,
+        siegeBonus: attackerTech.siege,
+      },
     );
     const previousOwner = target.owner;
-    const humanInvolved = state.multiplayer || army.owner === 0 || previousOwner === 0;
+    const humanInvolved =
+      state.multiplayer || army.owner === 0 || previousOwner === 0;
 
     if (battle.captured) {
       target.owner = army.owner;
-      target.garrison = battle.attackerRemaining;
+      target.units = battle.attackerRemaining;
+      if (attackerTech.captureGarrison > 0) {
+        target.units.infantry += Math.floor(
+          battle.defenderLoss * attackerTech.captureGarrison,
+        );
+      }
+      syncCityGarrison(target);
       target.level = Math.max(1, target.level - balance.captureLevelLoss);
       target.upgrading = null;
       attacker.kills += battle.defenderLoss;
@@ -299,7 +352,8 @@ export function step(state, balance, commands) {
         });
       }
     } else {
-      target.garrison = battle.defenderRemaining;
+      target.units = battle.defenderRemaining;
+      syncCityGarrison(target);
       attacker.kills += battle.defenderLoss;
       if (target.owner !== null) {
         state.players[target.owner].kills += battle.attackerLoss;

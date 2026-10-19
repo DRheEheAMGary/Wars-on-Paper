@@ -1,9 +1,17 @@
 // @ts-check
 /**
- * Player commands and their validation (recruit, upgrade, research, deploy).
+ * Player commands and validation (recruit, upgrade, research, deploy).
  */
 
 import { levelConfig } from './economy.js';
+import { checkResearch, techEffects } from './tech.js';
+import {
+  ensureCityUnits,
+  splitUnits,
+  syncCityGarrison,
+  totalUnits,
+  unitTravelSeconds,
+} from './units.js';
 
 /**
  * @typedef {{ ok: true, sea?: boolean } | { ok: false, error: string }} CommandResult
@@ -70,18 +78,22 @@ export function applyCommand(state, balance, command) {
   if (command.type === 'recruit') {
     const city = state.cities[command.cityId];
     if (!city || city.owner !== player.id) return { ok: false, error: '城市不属于你' };
+    const unitType = balance.units?.[command.unitType] ? command.unitType : 'infantry';
+    const unitConfig = balance.units[unitType];
     const config = levelConfig(balance, city.level);
-    const batch = balance.recruitBatch;
-    const gold = balance.soldierCostGold * batch;
-    const population = balance.soldierCostPopulation * batch;
+    const batch = unitConfig.batch ?? balance.recruitBatch ?? 10;
+    const gold = unitConfig.costGold * batch;
+    const population = unitConfig.costPopulation * batch;
+    ensureCityUnits(city);
     if (player.gold < gold) return { ok: false, error: '金币不足' };
     if (city.population < population) return { ok: false, error: '人口不足' };
-    if (city.garrison + batch > config.garrisonCap) {
+    if (totalUnits(city.units) + batch > config.garrisonCap) {
       return { ok: false, error: '驻军已满' };
     }
     player.gold -= gold;
     city.population -= population;
-    city.garrison += batch;
+    city.units[unitType] += batch;
+    syncCityGarrison(city);
     return { ok: true };
   }
 
@@ -100,15 +112,15 @@ export function applyCommand(state, balance, command) {
   }
 
   if (command.type === 'research') {
-    const tech = (balance.research ?? []).find(
-      (/** @type {any} */ item) => item.id === command.techId,
-    );
-    if (!tech) return { ok: false, error: '未知科技' };
-    if (player.tech?.[tech.id]) return { ok: false, error: '已研发' };
-    if (player.gold < tech.costGold) return { ok: false, error: '金币不足' };
+    const check = checkResearch(player, balance, command.techId);
+    if (!check.ok) return { ok: false, error: check.error };
+    const tech = check.tech;
     player.gold -= tech.costGold;
-    player.tech = player.tech ?? {};
-    player.tech[tech.id] = true;
+    player.research = {
+      id: tech.id,
+      endsTick:
+        state.tick + Math.round((tech.researchSeconds * 1000) / balance.tickMs),
+    };
     return { ok: true };
   }
 
@@ -117,12 +129,10 @@ export function applyCommand(state, balance, command) {
     const to = state.cities[command.toCity];
     if (!from || from.owner !== player.id) return { ok: false, error: '出发城市不属于你' };
     if (!to) return { ok: false, error: '目标城市无效' };
-
     if (to.id === from.id) return { ok: false, error: '不能派往同一座城市' };
 
     const targetOwned = to.owner === player.id;
     if (!targetOwned) {
-      // Attacks still require a land or sea border.
       const landRoute = from.neighbors.includes(to.id);
       const seaRoute = (from.seaNeighbors ?? []).includes(to.id);
       if (!landRoute && !seaRoute) {
@@ -130,21 +140,27 @@ export function applyCommand(state, balance, command) {
       }
     }
 
-    const soldiers = Math.min(
+    ensureCityUnits(from);
+    const requested = Math.min(
       Math.max(0, Math.floor(command.soldiers ?? from.garrison)),
       from.garrison,
     );
-    if (soldiers <= 0) return { ok: false, error: '没有可派出的部队' };
+    const split = splitUnits(from.units, requested);
+    const sent = split.taken;
+    const sentTotal = totalUnits(sent);
+    if (sentTotal <= 0) return { ok: false, error: '没有可派出的部队' };
 
-    const research = balance.researchEffects ?? {};
-    const logistics = player.tech?.logistics ? 1 - research.logistics : 1;
-    const baseTicks = Math.round((balance.soldierTravelSeconds * 1000) / balance.tickMs);
+    from.units = split.remaining;
+    syncCityGarrison(from);
+
+    const effects = techEffects(player, balance);
+    const travelSeconds = unitTravelSeconds(sent, balance);
+    const baseTicks = Math.round((travelSeconds * 1000) / balance.tickMs);
+    const logistics = 1 - effects.travel;
 
     let travelTicks;
     let sea = false;
     if (targetOwned) {
-      // Reinforcements may travel between any of your own cities; travel time
-      // follows the shortest land/sea path.
       const cost = shortestTravelCost(state, from.id, to.id, balance);
       travelTicks = Math.max(1, Math.round(baseTicks * cost * logistics));
     } else {
@@ -156,13 +172,13 @@ export function applyCommand(state, balance, command) {
       );
     }
 
-    from.garrison -= soldiers;
     state.armies.push({
       id: state.nextArmyId,
       owner: player.id,
       fromCity: from.id,
       toCity: to.id,
-      soldiers,
+      soldiers: sentTotal,
+      units: sent,
       departTick: state.tick,
       arriveTick: state.tick + travelTicks,
       sea,

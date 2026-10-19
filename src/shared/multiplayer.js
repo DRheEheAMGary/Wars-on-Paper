@@ -199,6 +199,7 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     isAI: false,
     alive: true,
     tech: {},
+    research: null,
   }));
 
   /** @type {any[]} */
@@ -208,6 +209,8 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     level: 1,
     population: balance.startPopulation,
     garrison: balance.neutralGarrison,
+    units: { infantry: balance.neutralGarrison, cavalry: 0, siege: 0 },
+    buildings: [],
     upgrading: null,
     terrain: city.terrain,
     continent: city.continent,
@@ -220,6 +223,7 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     for (const id of spawn.cities) {
       cities[id].owner = playerId;
       cities[id].garrison = balance.startSoldiers;
+      cities[id].units = { infantry: balance.startSoldiers, cavalry: 0, siege: 0 };
       cities[id].population = Math.max(cities[id].population, balance.startPopulation);
     }
   });
@@ -297,11 +301,13 @@ export function addLatePlayer(state, balance, map, info) {
     isAI: false,
     alive: true,
     tech: {},
+    research: null,
   });
 
   for (const id of spawn.cities) {
     state.cities[id].owner = playerId;
     state.cities[id].garrison = balance.startSoldiers;
+    state.cities[id].units = { infantry: balance.startSoldiers, cavalry: 0, siege: 0 };
     state.cities[id].population = Math.max(
       state.cities[id].population,
       balance.startPopulation,

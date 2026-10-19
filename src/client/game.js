@@ -7,6 +7,8 @@
 import { Camera } from './render/camera.js';
 import { drawMatch, cityAt } from './render/match.js';
 import { estimateBattle } from '../shared/combat.js';
+import { techEffects } from '../shared/tech.js';
+import { compositionText, splitUnits } from '../shared/units.js';
 
 /** @param {string} id @returns {HTMLElement} */
 function mustElement(id) {
@@ -291,6 +293,8 @@ function handleEvents(events) {
       showToast(
         `${name} 战斗：损失 ${event.attackerLoss}，歼敌 ${event.defenderLoss}`,
       );
+    } else if (event.type === 'researched') {
+      showToast(`${event.name ?? '科技'} 研发完成`);
     } else if (event.type === 'upgraded') {
       showToast(`${map.cities[event.cityId]?.name ?? '城市'} 升至 Lv.${event.level}`);
     } else if (event.type === 'reinforce') {
@@ -323,9 +327,9 @@ function updateHoverAt(screenX, screenY) {
   }
 }
 
-function militaryMultiplier() {
-  const player = snapshot?.players[0];
-  return 1 + (player?.tech?.military ? balance.researchEffects.military : 0);
+function playerTech(playerId) {
+  const player = snapshot?.players?.[playerId];
+  return techEffects(player ?? {}, balance);
 }
 
 function renderPanel() {
@@ -362,13 +366,18 @@ function buildPanel() {
   if (owned) {
     const actions = createElement('div', 'panel-actions');
 
-    panelRefs.recruit = createElement('button', '');
-    panelRefs.recruit.addEventListener('click', () => {
-      send({
-        type: 'command',
-        command: { type: 'recruit', cityId: selectedId },
+    panelRefs.recruits = new Map();
+    for (const unitType of balance.unitOrder ?? ['infantry']) {
+      const button = createElement('button', '');
+      button.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'recruit', cityId: selectedId, unitType },
+        });
       });
-    });
+      actions.append(button);
+      panelRefs.recruits.set(unitType, button);
+    }
 
     panelRefs.upgrade = createElement('button', '');
     panelRefs.upgrade.addEventListener('click', () => {
@@ -377,8 +386,7 @@ function buildPanel() {
         command: { type: 'upgrade', cityId: selectedId },
       });
     });
-
-    actions.append(panelRefs.recruit, panelRefs.upgrade);
+    actions.append(panelRefs.upgrade);
     panelElement.append(actions);
 
     panelRefs.upgradeInfo = createElement('p', 'panel-sub', '');
@@ -398,6 +406,8 @@ function buildPanel() {
       panelRefs.research.set(tech.id, { button, tech });
     }
     panelElement.append(researchList);
+    panelRefs.researchInfo = createElement('p', 'panel-sub', '');
+    panelElement.append(panelRefs.researchInfo);
   }
 
   if (owned) {
@@ -444,19 +454,24 @@ function updatePanel() {
   const config =
     balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
 
+  const composition = compositionText(cityState.units ?? {}, balance);
   panelRefs.sub.textContent =
     `Lv.${cityState.level} · 人口 ${cityState.population} · 驻军 ${cityState.garrison}` +
+    (composition ? `（${composition}）` : '') +
     (panelRefs.owned ? '' : ' · 中立城市（点击你自己的城市才能操作）');
 
   if (panelRefs.owned) {
-    const recruitCost = balance.soldierCostGold * balance.recruitBatch;
-    const recruitPopulation = balance.soldierCostPopulation * balance.recruitBatch;
-    panelRefs.recruit.textContent =
-      `招募 ${balance.recruitBatch} 兵（${recruitCost} 金 / ${recruitPopulation} 人口）`;
-    panelRefs.recruit.disabled =
-      player.gold < recruitCost ||
-      cityState.population < recruitPopulation ||
-      cityState.garrison + balance.recruitBatch > config.garrisonCap;
+    for (const [unitType, button] of panelRefs.recruits ?? []) {
+      const unit = balance.units[unitType];
+      const batch = unit.batch;
+      const gold = unit.costGold * batch;
+      const population = unit.costPopulation * batch;
+      button.textContent = `招募${unit.name} ×${batch}（${gold} 金 / ${population} 人口）`;
+      button.disabled =
+        player.gold < gold ||
+        cityState.population < population ||
+        cityState.garrison + batch > config.garrisonCap;
+    }
 
     panelRefs.upgrade.textContent =
       cityState.level >= balance.cityLevels.length
@@ -476,12 +491,29 @@ function updatePanel() {
       panelRefs.upgradeInfo.textContent = '';
     }
 
+    const researching = player.research;
     for (const [techId, entry] of panelRefs.research) {
       const researched = Boolean(player.tech?.[techId]);
+      const locked = (entry.tech.requires ?? []).some(
+        (/** @type {string} */ required) => !player.tech?.[required],
+      );
+      const busy = Boolean(researching) && !researched;
       entry.button.textContent = researched
         ? `${entry.tech.name} · 已研发`
-        : `${entry.tech.name}（${entry.tech.description}）· ${entry.tech.costGold} 金`;
-      entry.button.disabled = researched || player.gold < entry.tech.costGold;
+        : locked
+          ? `${entry.tech.name} · 需前置科技`
+          : `${entry.tech.name}（${entry.tech.description}）· ${entry.tech.costGold} 金`;
+      entry.button.disabled =
+        researched || locked || busy || player.gold < entry.tech.costGold;
+    }
+    if (researching) {
+      const tech = balance.research.find(
+        (/** @type {any} */ entry) => entry.id === researching.id,
+      );
+      const remaining = Math.max(0, researching.endsTick - snapshot.tick);
+      panelRefs.researchInfo.textContent = `研发中：${tech?.name ?? '科技'} · 剩余 ${Math.ceil(remaining / 10)} 秒`;
+    } else {
+      panelRefs.researchInfo.textContent = '';
     }
   }
 
@@ -633,16 +665,28 @@ canvas.addEventListener('pointermove', (event) => {
     if (dispatchTarget >= 0 && dispatchAmount > 0) {
       const targetState = snapshot.cities[dispatchTarget];
       if (targetState.owner !== myPlayerId) {
+        const sent = splitUnits(
+          current?.units ?? { infantry: current?.garrison ?? 0 },
+          dispatchAmount,
+        ).taken;
+        const attackerTech = playerTech(myPlayerId);
+        const defenderTech =
+          targetState.owner === null ? {} : playerTech(targetState.owner);
         dispatchOdds = Math.round(
           estimateBattle(
-            dispatchAmount,
+            sent,
             {
               level: targetState.level,
               garrison: targetState.garrison,
+              units: targetState.units,
               terrain: map.cities[dispatchTarget].terrain,
             },
             balance,
-            militaryMultiplier(),
+            {
+              attackerAttack: attackerTech.attack,
+              defenderDefense: defenderTech.defense,
+              siegeBonus: attackerTech.siege,
+            },
           ).odds * 100,
         );
       }

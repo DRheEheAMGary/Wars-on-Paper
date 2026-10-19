@@ -1,7 +1,11 @@
 // @ts-check
 /**
- * Resource simulation: production, population, upkeep, starvation, upgrades.
+ * Resource simulation: production, population, upkeep, starvation, upgrades
+ * and timed technology research.
  */
+
+import { techEffects } from './tech.js';
+import { removeUnits, syncCityGarrison, totalUnits } from './units.js';
 
 /**
  * @param {any} balance
@@ -19,20 +23,41 @@ export function levelConfig(balance, level) {
  */
 export function tickEconomy(state, balance) {
   const dt = balance.tickMs / 1000;
-  const goldBonusEffect = balance.researchEffects?.economy ?? 0;
 
+  // Finish timed research.
+  for (const player of state.players) {
+    if (!player.research) continue;
+    if (state.tick < player.research.endsTick) continue;
+    const tech = (balance.research ?? []).find(
+      (/** @type {any} */ entry) => entry.id === player.research.id,
+    );
+    player.tech = player.tech ?? {};
+    player.tech[player.research.id] = true;
+    player.research = null;
+    if (player.id === 0 || state.multiplayer) {
+      state.events.push({
+        type: 'researched',
+        playerId: player.id,
+        techId: tech?.id,
+        name: tech?.name ?? '科技',
+      });
+    }
+  }
+
+  // Finish city upgrades.
   for (const city of state.cities) {
     if (city.owner === null) continue;
     if (city.upgrading && state.tick >= city.upgrading.endsTick) {
       city.level = Math.min(balance.cityLevels.length, city.level + 1);
       city.upgrading = null;
-      if (city.owner === 0) {
+      if (city.owner === 0 || state.multiplayer) {
         state.events.push({ type: 'upgraded', cityId: city.id, level: city.level });
       }
     }
   }
 
   for (const player of state.players) {
+    const effects = techEffects(player, balance);
     let goldGain = 0;
     let foodGain = 0;
     let soldiers = 0;
@@ -40,38 +65,53 @@ export function tickEconomy(state, balance) {
     for (const city of state.cities) {
       if (city.owner !== player.id) continue;
       const config = levelConfig(balance, city.level);
-      goldGain += config.goldPerSecond;
-      foodGain += config.foodPerSecond;
-      city.population = Math.min(
-        config.populationCap,
-        city.population + balance.populationGrowthPerSecond * dt,
+      const difficultyMultiplier =
+        player.isAI && state.aiProfile?.aiGoldMultiplier
+          ? state.aiProfile.aiGoldMultiplier
+          : 1;
+      goldGain += config.goldPerSecond * (1 + effects.gold) * difficultyMultiplier;
+      foodGain += config.foodPerSecond * (1 + effects.food);
+
+      const populationCap = Math.round(
+        config.populationCap * (1 + effects.populationCap),
       );
+      const growth =
+        balance.populationGrowthPerSecond * (1 + 0.25 * (city.level - 1));
+      city.population = Math.min(populationCap, city.population + growth * dt);
+
+      syncCityGarrison(city);
       soldiers += city.garrison;
     }
     for (const army of state.armies) {
       if (army.owner === player.id) soldiers += army.soldiers;
     }
 
-    const techMultiplier = 1 + (player.tech?.economy ? goldBonusEffect : 0);
-    const difficultyMultiplier =
-      player.isAI && state.aiProfile?.aiGoldMultiplier
-        ? state.aiProfile.aiGoldMultiplier
-        : 1;
-    player.gold += goldGain * dt * techMultiplier * difficultyMultiplier;
+    player.gold += goldGain * dt;
     player.food += (foodGain - soldiers * balance.soldierFoodUpkeepPerSecond) * dt;
 
     if (player.food < 0) {
       player.food = 0;
-      const loss = balance.starvationLossPerSecond * dt;
+      const lossRate = balance.starvationLossPerSecond * dt;
       for (const city of state.cities) {
         if (city.owner !== player.id) continue;
-        city.garrison = Math.max(0, Math.round(city.garrison * (1 - loss)));
+        const total = totalUnits(city.units);
+        const loss = Math.max(1, Math.round(total * lossRate));
+        city.units = removeUnits(city.units, loss).remaining;
+        syncCityGarrison(city);
       }
       for (const army of state.armies) {
         if (army.owner !== player.id) continue;
-        army.soldiers = Math.max(0, Math.round(army.soldiers * (1 - loss)));
+        const total = totalUnits(army.units);
+        const loss = Math.max(1, Math.round(total * lossRate));
+        army.units = removeUnits(army.units, loss).remaining;
+        army.soldiers = totalUnits(army.units);
+        if (army.soldiers <= 0) {
+          army.soldiers = 0;
+        }
       }
-      if (player.id === 0) state.events.push({ type: 'starvation' });
+      if (player.id === 0 || state.multiplayer) {
+        state.events.push({ type: 'starvation', playerId: player.id });
+      }
     }
   }
 }

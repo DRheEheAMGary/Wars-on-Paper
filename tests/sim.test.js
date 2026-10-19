@@ -64,7 +64,9 @@ test('deploy marches an army and captures an undefended city', () => {
   );
   assert.ok(toId !== undefined);
   state.cities[toId].garrison = 0;
+  state.cities[toId].units = { infantry: 0, cavalry: 0, siege: 0 };
   from.garrison = 50;
+  from.units = { infantry: 50, cavalry: 0, siege: 0 };
 
   const result = applyCommand(state, balance, {
     type: 'deploy',
@@ -173,6 +175,7 @@ test('reinforcements can travel to any of your cities, but attacks stay adjacent
   assert.ok(distant);
   distant.owner = 0;
   distant.garrison = 10;
+  distant.units = { infantry: 10, cavalry: 0, siege: 0 };
 
   const transfer = applyCommand(state, balance, {
     type: 'deploy',
@@ -210,7 +213,9 @@ test('failed attacks wipe the attacker instead of retreating', () => {
   const toId = from.neighbors.find((neighbour) => state.cities[neighbour].owner === null);
   assert.ok(toId !== undefined);
   from.garrison = 8;
+  from.units = { infantry: 8, cavalry: 0, siege: 0 };
   state.cities[toId].garrison = 200;
+  state.cities[toId].units = { infantry: 200, cavalry: 0, siege: 0 };
 
   applyCommand(state, balance, { type: 'deploy', fromCity: from.id, toCity: toId });
   let sawReturn = false;
@@ -231,8 +236,10 @@ test('armies can cross the sea between continents', () => {
   const route = map.seaRoutes[0];
   state.cities[route.a].owner = 0;
   state.cities[route.a].garrison = 150;
+  state.cities[route.a].units = { infantry: 150, cavalry: 0, siege: 0 };
   state.cities[route.b].owner = null;
   state.cities[route.b].garrison = 0;
+  state.cities[route.b].units = { infantry: 0, cavalry: 0, siege: 0 };
 
   const result = applyCommand(state, balance, {
     type: 'deploy',
@@ -282,19 +289,34 @@ test('match length can be overridden', () => {
   assert.ok(state.result.rank >= 1);
 });
 
-test('research costs gold and unlocks an effect', () => {
+test('research costs gold, respects prerequisites and completes on a timer', () => {
   const state = makeState();
   state.players[0].gold = 1000;
-  const result = applyCommand(state, balance, {
-    type: 'research',
-    techId: 'economy',
-  });
+
+  const result = applyCommand(state, balance, { type: 'research', techId: 'tax' });
   assert.equal(result.ok, true);
-  assert.equal(state.players[0].tech.economy, true);
   assert.ok(state.players[0].gold < 1000);
+  assert.equal(state.players[0].research.id, 'tax');
   assert.equal(
-    applyCommand(state, balance, { type: 'research', techId: 'economy' }).ok,
+    applyCommand(state, balance, { type: 'research', techId: 'drill' }).ok,
     false,
+    'only one tech may be researched at a time',
+  );
+
+  const endTick = state.players[0].research.endsTick;
+  while (state.tick <= endTick) step(state, balance, []);
+  assert.equal(state.players[0].tech.tax, true);
+  assert.equal(state.players[0].research, null);
+
+  assert.equal(
+    applyCommand(state, balance, { type: 'research', techId: 'armor' }).ok,
+    false,
+    'second-tier tech requires its prerequisite',
+  );
+  assert.equal(
+    applyCommand(state, balance, { type: 'research', techId: 'tax' }).ok,
+    false,
+    'already researched',
   );
 });
 
