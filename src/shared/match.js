@@ -70,7 +70,7 @@ function createStartingCommander(balance, seed, playerIndex, cityId) {
  * Create a deterministic match state with a human player and AI opponents.
  * @param {import('./mapgen.js').GameMap} map
  * @param {any} balance
- * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any, mode?: 'timed' | 'endless', scenario?: string }} [options]
+ * @param {{ seed?: number | string, playerName?: string, aiCount?: number, matchSeconds?: number, aiProfile?: any, mode?: 'timed' | 'endless', scenario?: string, tutorial?: boolean }} [options]
  * @returns {any}
  */
 export function createMatch(map, balance, options = {}) {
@@ -163,6 +163,11 @@ export function createMatch(map, balance, options = {}) {
       cities[id].population = Math.max(cities[id].population, balance.startPopulation);
     }
   });
+
+  if (options.tutorial && players[0]) {
+    players[0].gold = Math.max(players[0].gold, 1500);
+    players[0].food = Math.max(players[0].food, 500);
+  }
 
   const scenarioConfig =
     balance.scenarios?.[options.scenario ?? 'classic'] ?? null;

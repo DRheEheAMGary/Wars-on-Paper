@@ -77,15 +77,15 @@ const effectiveSeed = tutorialMode ? 7777 : seed;
 const effectiveAICount = tutorialMode ? 0 : aiCount;
 const effectiveMatchSeconds = tutorialMode ? 1800 : matchSeconds;
 const effectiveMode = tutorialMode ? 'timed' : gameMode;
+
+const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
+  (response) => response.json(),
+);
 const requestedScenario = params.get('scenario') ?? '';
 const scenarioId = balance.scenarios?.[requestedScenario]
   ? requestedScenario
   : 'classic';
 const effectiveScenario = tutorialMode ? 'classic' : scenarioId;
-
-const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
-  (response) => response.json(),
-);
 
 const requestedAI = Number(params.get('ai'));
 const aiCount = Number.isInteger(requestedAI)
@@ -364,6 +364,7 @@ if (isMultiplayer) {
       aiProfile: difficulty,
       mode: effectiveMode,
       scenario: effectiveScenario,
+      tutorial: tutorialMode,
     },
     balance,
   });

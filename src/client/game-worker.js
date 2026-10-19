@@ -60,6 +60,7 @@ self.onmessage = (event) => {
       aiProfile: message.config.aiProfile,
       mode: message.config.mode,
       scenario: message.config.scenario,
+      tutorial: message.config.tutorial,
     });
     self.postMessage({ type: 'init', map, snapshot: snapshot(state) });
     startTimer();
