@@ -45,7 +45,7 @@ function ownerColor(state, owner) {
  * @param {import('../../shared/mapgen.js').GameMap} map
  * @param {any} state
  * @param {import('./camera.js').Camera} camera
- * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number }} options
+ * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number }} options
  */
 export function drawMatch(ctx, map, state, camera, options) {
   const {
@@ -55,6 +55,10 @@ export function drawMatch(ctx, map, state, camera, options) {
     hoverId = -1,
     selectedId = -1,
     tick = state.tick,
+    dispatchFrom = -1,
+    dispatchPoint = null,
+    dispatchTarget = -1,
+    dispatchAmount = 0,
   } = options;
   const { zoom } = camera;
   const screen = (/** @type {number} */ pixels) => pixels / zoom;
@@ -106,6 +110,45 @@ export function drawMatch(ctx, map, state, camera, options) {
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = screen(2.4);
     ctx.stroke();
+  }
+
+  // Drag-to-dispatch preview: line from the selected city to the cursor,
+  // target territory highlight and the number of soldiers that will move.
+  if (dispatchFrom >= 0 && dispatchPoint && map.cities[dispatchFrom]) {
+    const source = map.cities[dispatchFrom];
+    ctx.strokeStyle = 'rgba(224, 73, 47, 0.8)';
+    ctx.lineWidth = screen(1.6);
+    ctx.setLineDash([screen(6), screen(4)]);
+    ctx.beginPath();
+    ctx.moveTo(source.center[0], source.center[1]);
+    ctx.lineTo(dispatchPoint[0], dispatchPoint[1]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.arc(dispatchPoint[0], dispatchPoint[1], screen(3.5), 0, Math.PI * 2);
+    ctx.fillStyle = ACCENT;
+    ctx.fill();
+
+    if (dispatchTarget >= 0 && map.cities[dispatchTarget]) {
+      tracePolygon(ctx, map.cities[dispatchTarget].polygon);
+      ctx.fillStyle = 'rgba(224, 73, 47, 0.16)';
+      ctx.fill();
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = screen(2.2);
+      ctx.stroke();
+    }
+
+    if (dispatchAmount > 0) {
+      ctx.font = `${screen(12)}px ${FONT_STACK}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = screen(3);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillStyle = '#1b1b1b';
+      ctx.strokeText(String(dispatchAmount), dispatchPoint[0], dispatchPoint[1] - screen(13));
+      ctx.fillText(String(dispatchAmount), dispatchPoint[0], dispatchPoint[1] - screen(13));
+    }
   }
 
   // Sea routes from the selected city (渡海目标).

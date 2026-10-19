@@ -59,6 +59,13 @@ let paused = false;
 let speed = 1;
 let dragging = false;
 let moved = false;
+/** @type {'pan' | 'dispatch' | null} */
+let dragMode = null;
+let dispatchFrom = -1;
+/** @type {[number, number] | null} */
+let dispatchPoint = null;
+let dispatchTarget = -1;
+let dispatchAmount = 0;
 let lastPointerX = 0;
 let lastPointerY = 0;
 let toastTimer = 0;
@@ -255,7 +262,7 @@ function buildPanel() {
   }
 
   panelElement.append(
-    createElement('p', 'panel-label', owned ? '可行动目标 · 拖动滑条选数量' : '相邻城市'),
+    createElement('p', 'panel-label', owned ? '可行动目标 · 拖拽派兵（滑条选数量）' : '相邻城市'),
   );
 
   const list = createElement('div', 'neighbour-list');
@@ -492,6 +499,10 @@ function render() {
     hoverId,
     selectedId,
     tick: snapshot.tick,
+    dispatchFrom,
+    dispatchPoint,
+    dispatchTarget,
+    dispatchAmount,
   });
 }
 
@@ -509,15 +520,57 @@ function resizeCanvas() {
 
 canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
-  dragging = true;
   moved = false;
   lastPointerX = event.clientX;
   lastPointerY = event.clientY;
   canvas.setPointerCapture(event.pointerId);
   canvas.classList.add('is-dragging');
+
+  if (!map || !snapshot) {
+    dragMode = 'pan';
+    dragging = true;
+    return;
+  }
+
+  const world = camera.screenToWorld(event.clientX, event.clientY);
+  const id = cityAt(map, world, 10 / camera.zoom);
+  if (
+    selectedId >= 0 &&
+    id === selectedId &&
+    snapshot.cities[selectedId]?.owner === 0
+  ) {
+    dragMode = 'dispatch';
+    dragging = false;
+    dispatchFrom = selectedId;
+    dispatchPoint = world;
+    dispatchTarget = -1;
+    dispatchAmount = 0;
+    requestDraw();
+    return;
+  }
+
+  dragMode = 'pan';
+  dragging = true;
 });
 
 canvas.addEventListener('pointermove', (event) => {
+  if (dragMode === 'dispatch') {
+    moved = true;
+    const world = camera.screenToWorld(event.clientX, event.clientY);
+    dispatchPoint = world;
+    const target = cityAt(map, world, 14 / camera.zoom);
+    dispatchTarget = target === dispatchFrom ? -1 : target;
+    const ref = dispatchTarget >= 0 ? panelRefs?.rows.get(dispatchTarget) : null;
+    const current = snapshot?.cities[selectedId];
+    dispatchAmount = ref?.slider
+      ? Number(ref.slider.value)
+      : current
+        ? Math.max(1, Math.ceil(current.garrison / 2))
+        : 0;
+    requestDraw();
+    return;
+  }
+
   if (dragging) {
     const dx = event.clientX - lastPointerX;
     const dy = event.clientY - lastPointerY;
@@ -531,14 +584,65 @@ canvas.addEventListener('pointermove', (event) => {
   updateHoverAt(event.clientX, event.clientY);
 });
 
+function resetDrag() {
+  dragging = false;
+  dragMode = null;
+  dispatchFrom = -1;
+  dispatchPoint = null;
+  dispatchTarget = -1;
+  dispatchAmount = 0;
+  canvas.classList.remove('is-dragging');
+  requestDraw();
+}
+
+/** @param {number} targetId */
+function dispatchTo(targetId) {
+  const current = snapshot.cities[selectedId];
+  if (!current || current.owner !== 0) return;
+  if (current.garrison <= 0) {
+    showToast('该城没有可派出的部队');
+    return;
+  }
+  const source = map.cities[selectedId];
+  const landRoute = source.neighbors.includes(targetId);
+  const seaRoute = (source.seaNeighbors ?? []).includes(targetId);
+  if (!landRoute && !seaRoute) {
+    showToast('只能派往相邻或可渡海的城市');
+    return;
+  }
+  const ref = panelRefs?.rows.get(targetId);
+  const soldiers = Math.max(
+    1,
+    Math.min(
+      Number(ref?.slider?.value) || Math.ceil(current.garrison / 2),
+      current.garrison,
+    ),
+  );
+  const isOwn = snapshot.cities[targetId].owner === 0;
+  worker.postMessage({
+    type: 'command',
+    command: { type: 'deploy', fromCity: selectedId, toCity: targetId, soldiers },
+  });
+  showToast(
+    `${isOwn ? '调兵至' : '派兵前往'} ${map.cities[targetId].name}（${soldiers}）`,
+  );
+}
+
 /** @param {PointerEvent} event */
 function endDrag(event) {
-  if (!dragging) return;
-  dragging = false;
-  canvas.classList.remove('is-dragging');
+  if (!dragMode) return;
+  const mode = dragMode;
+  const target = dispatchTarget;
+  resetDrag();
   if (canvas.hasPointerCapture(event.pointerId)) {
     canvas.releasePointerCapture(event.pointerId);
   }
+
+  if (mode === 'dispatch') {
+    if (target >= 0) dispatchTo(target);
+    return;
+  }
+
   if (moved) return;
 
   const world = camera.screenToWorld(event.clientX, event.clientY);
@@ -550,30 +654,15 @@ function endDrag(event) {
     return;
   }
 
-  if (
-    selectedId >= 0 &&
-    selectedId !== id &&
-    snapshot.cities[selectedId].owner === 0 &&
-    (map.cities[selectedId].neighbors.includes(id) ||
-      (map.cities[selectedId].seaNeighbors ?? []).includes(id))
-  ) {
-    const ref = panelRefs?.rows.get(id);
-    if (ref) {
-      ref.row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      ref.slider?.focus();
-      ref.row.classList.add('is-target');
-      window.setTimeout(() => ref.row.classList.remove('is-target'), 1000);
-      return;
-    }
-  }
-
   selectedId = id;
   renderPanel();
   requestDraw();
 }
 
 canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointercancel', () => {
+  if (dragMode) resetDrag();
+});
 
 canvas.addEventListener(
   'wheel',
