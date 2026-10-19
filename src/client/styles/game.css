@@ -880,3 +880,149 @@ body.game-page {
     gap: 6px;
   }
 }
+
+.coach {
+  position: fixed;
+  top: 64px;
+  right: 18px;
+  z-index: 25;
+  width: 286px;
+  padding: 14px 16px;
+  border: 1px solid var(--ink);
+  border-left: 3px solid var(--accent);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.coach.hidden {
+  display: none;
+}
+
+.coach-kicker {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.coach h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.coach p {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.75;
+}
+
+.coach-actions button {
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--white);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.coach-actions button:hover {
+  border-color: var(--ink);
+}
+
+.quick-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.quick-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+}
+
+.quick-target-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.72rem;
+}
+
+.quick-target-info small {
+  color: var(--ink-soft);
+  font-size: 0.64rem;
+}
+
+.quick-target button {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--white);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.quick-target button:hover {
+  border-color: var(--ink);
+}
+
+.quick-target button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.quick-hint {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  line-height: 1.7;
+}
+
+.setup-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.setup-check input {
+  accent-color: var(--accent);
+}
+
+.city-panel.beginner .panel-advanced {
+  display: none;
+}
+
+.city-panel.beginner.show-advanced .panel-advanced {
+  display: block;
+}
+
+.advanced-toggle {
+  width: 100%;
+  margin: 8px 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.advanced-toggle:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}

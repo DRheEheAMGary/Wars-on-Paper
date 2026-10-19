@@ -193,3 +193,16 @@
 .setup-row.hidden {
   display: none;
 }
+
+.setup-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.setup-check input {
+  accent-color: var(--accent);
+}

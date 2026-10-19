@@ -19,7 +19,7 @@
         <a class="setup-back" href="/">← 返回主菜单</a>
         <p class="setup-kicker">单人游戏</p>
         <h1 class="setup-title">开始一局</h1>
-        <p class="tagline">选择地图规模、AI 对手与难度，然后开战。</p>
+        <p class="tagline">新手推荐：60 城、1 名 AI、简单难度；开局会显示行动提示与快捷进攻。</p>
 
         <form id="setup-form" class="setup-form">
           <div class="setup-row">
@@ -66,6 +66,16 @@
             <div class="setup-control setup-segmented" id="setup-difficulty"></div>
           </div>
 
+          <div class="setup-row">
+            <span class="setup-label">新手引导</span>
+            <div class="setup-control">
+              <label class="setup-check">
+                <input id="setup-coach" type="checkbox" checked />
+                显示行动提示与快捷进攻
+              </label>
+            </div>
+          </div>
+
           <div class="setup-row" id="setup-minutes-row">
             <label for="setup-minutes">对局时长</label>
             <div class="setup-control">
@@ -77,7 +87,7 @@
         </form>
 
         <p class="setup-note">
-          单击城市选中，左侧「派兵数量」滑条决定这次派多少兵，按住城市拖到目标城市派兵。
+          单击城市选中；新手模式可直接在「快捷进攻」里点目标攻城，也可以调好「派兵数量」后拖拽派兵。
         </p>
         <p class="setup-note setup-note-muted">
           拖到自己的城市可跨任意距离调兵；攻击中立/敌方城市仅限相邻或渡海。

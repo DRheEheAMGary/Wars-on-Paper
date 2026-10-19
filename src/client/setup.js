@@ -5,9 +5,10 @@
 
 const CITY_OPTIONS = [60, 100, 160, 240, 360];
 const AI_OPTIONS = [0, 1, 2, 3];
-const DEFAULT_CITIES = 160;
-const DEFAULT_AI = 2;
+const DEFAULT_CITIES = 60;
+const DEFAULT_AI = 1;
 const DEFAULT_MINUTES = 10;
+const DEFAULT_DIFFICULTY = 'easy';
 
 const seedInput = /** @type {HTMLInputElement} */ (document.getElementById('setup-seed'));
 const citiesSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-cities'));
@@ -16,6 +17,7 @@ const difficultyGroup = /** @type {HTMLElement} */ (document.getElementById('set
 const minutesSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-minutes'));
 const modeSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-mode'));
 const scenarioSelect = /** @type {HTMLSelectElement} */ (document.getElementById('setup-scenario'));
+const coachCheckbox = /** @type {HTMLInputElement} */ (document.getElementById('setup-coach'));
 const form = /** @type {HTMLFormElement} */ (document.getElementById('setup-form'));
 const randomSeedButton = /** @type {HTMLButtonElement} */ (document.getElementById('setup-random-seed'));
 
@@ -77,14 +79,14 @@ function populate(balance) {
     CITY_OPTIONS.includes(requestedCities) ? requestedCities : DEFAULT_CITIES,
   );
 
-  const requestedAI = Number(params.get('ai'));
+  const requestedAI = params.has('ai') ? Number(params.get('ai')) : NaN;
   aiSelect.value = String(AI_OPTIONS.includes(requestedAI) ? requestedAI : DEFAULT_AI);
 
   const requestedDifficulty = params.get('difficulty') ?? '';
   const difficultyIds = Object.keys(difficulties);
   const difficultyId = difficultyIds.includes(requestedDifficulty)
     ? requestedDifficulty
-    : balance?.defaultDifficulty ?? 'normal';
+    : DEFAULT_DIFFICULTY;
   const radio = /** @type {HTMLInputElement | null} */ (
     difficultyGroup.querySelector(`input[value="${difficultyId}"]`)
   );
@@ -114,6 +116,7 @@ function populate(balance) {
     ? requestedScenario
     : 'classic';
   modeSelect.value = params.get('mode') === 'endless' ? 'endless' : 'timed';
+  if (params.get('coach') === '0') coachCheckbox.checked = false;
   syncMode();
 }
 
@@ -156,6 +159,7 @@ form.addEventListener('submit', (event) => {
     minutes: String(minutes),
     mode: modeSelect.value,
     scenario: scenarioSelect.value,
+    coach: coachCheckbox.checked ? '1' : '0',
   });
   window.location.href = `/game.html?${query.toString()}`;
 });

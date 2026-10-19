@@ -60,6 +60,9 @@ const tutorialPanel = mustElement('tutorial-panel');
 const tutorialTitle = mustElement('tutorial-title');
 const tutorialDesc = mustElement('tutorial-desc');
 const tutorialComplete = mustElement('tutorial-complete');
+const coachElement = mustElement('coach');
+const coachTitle = mustElement('coach-title');
+const coachDesc = mustElement('coach-desc');
 const pauseButton = mustElement('button-pause');
 const speedButton = mustElement('button-speed');
 const overviewElement = mustElement('overview');
@@ -79,6 +82,8 @@ const isMultiplayer = Boolean(roomCode);
 const gameMode = params.get('mode') === 'endless' ? 'endless' : 'timed';
 
 const tutorialMode = params.get('tutorial') === '1';
+const coachMode =
+  params.get('coach') === '1' && !isMultiplayer && !tutorialMode;
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
@@ -159,6 +164,12 @@ let tutorialDone = false;
 let overviewOpen = false;
 let overviewFilter = 'mine';
 let overviewLastRender = 0;
+let coachStep = 0;
+let coachDismissed = false;
+let coachStartUnits = null;
+let coachStartCities = null;
+let autoSelected = false;
+let advancedOpen = false;
 
 const TUTORIAL_STEPS = [
   {
@@ -257,9 +268,23 @@ function applySnapshot(nextSnapshot) {
   snapshot = nextSnapshot;
   updateHud();
   handleEvents(snapshot.events ?? []);
+  if (
+    !autoSelected &&
+    !tutorialMode &&
+    myPlayerId >= 0 &&
+    selectedId < 0 &&
+    Array.isArray(snapshot.players)
+  ) {
+    const ownCity = snapshot.cities.find((city) => city.owner === myPlayerId);
+    if (ownCity) {
+      autoSelected = true;
+      selectedId = ownCity.id;
+    }
+  }
   if (selectedId >= 0) renderPanel();
   if (snapshot.phase !== 'playing') showResult();
   updateTutorial();
+  updateCoach();
   if (overviewOpen) {
     const now = performance.now();
     if (now - overviewLastRender > 1200) {
@@ -917,6 +942,37 @@ function updateOrderButtons() {
   }
 }
 
+function estimateDeployOdds(fromCityState, targetState, soldiers) {
+  const sent = splitUnits(
+    fromCityState.units ?? { infantry: fromCityState.garrison ?? 0 },
+    soldiers,
+  ).taken;
+  const attackerTech = playerTech(myPlayerId);
+  const defenderTech =
+    targetState.owner === null ? {} : playerTech(targetState.owner);
+  const defenderBuildings = buildingEffects(balance, {
+    buildings: targetState.buildings ?? [],
+  });
+  return Math.round(
+    estimateBattle(
+      sent,
+      {
+        level: targetState.level,
+        garrison: targetState.garrison,
+        units: targetState.units,
+        terrain: map.cities[targetState.id].terrain,
+      },
+      balance,
+      {
+        attackerAttack: attackerTech.attack,
+        defenderDefense:
+          (defenderTech.defense ?? 0) + (defenderBuildings.defense ?? 0),
+        siegeBonus: attackerTech.siege,
+      },
+    ).odds * 100,
+  );
+}
+
 function buildPanel() {
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
@@ -960,6 +1016,73 @@ function buildPanel() {
 
     panelRefs.upgradeInfo = createElement('p', 'panel-sub', '');
     panelElement.append(panelRefs.upgradeInfo);
+
+    const cityMeta = map.cities[selectedId];
+    const neighborIds = [
+      ...(cityMeta.neighbors ?? []),
+      ...(cityMeta.seaNeighbors ?? []),
+    ];
+    const quickTargets = neighborIds
+      .map((id) => snapshot.cities[id])
+      .filter((target) => target && target.owner !== myPlayerId)
+      .map((target) => ({
+        target,
+        odds: estimateDeployOdds(
+          cityState,
+          target,
+          Math.max(10, Math.floor(cityState.garrison * 0.6)),
+        ),
+      }))
+      .sort((a, b) => b.odds - a.odds)
+      .slice(0, 4);
+    panelElement.append(createElement('p', 'panel-label', '快捷进攻'));
+    if (quickTargets.length > 0) {
+      panelElement.append(
+        createElement(
+          'p',
+          'quick-hint',
+          '点「进攻」直接派兵，不用拖拽；默认出兵约 60% 驻军。',
+        ),
+      );
+      const quickList = createElement('div', 'quick-targets');
+      for (const { target, odds } of quickTargets) {
+        const row = createElement('div', 'quick-target');
+        const info = createElement('div', 'quick-target-info');
+        const ownerName =
+          target.owner === null
+            ? '中立'
+            : snapshot.players[target.owner]?.name ?? `玩家 ${target.owner}`;
+        info.append(
+          createElement(
+            'span',
+            '',
+            `${map.cities[target.id]?.name ?? `城 ${target.id + 1}`} · ${ownerName}`,
+          ),
+          createElement('small', '', `预计胜率 ${odds}% · 相邻`),
+        );
+        const button = createElement('button', '', '进攻');
+        button.addEventListener('click', () => {
+          send({
+            type: 'command',
+            command: {
+              type: 'deploy',
+              fromCity: selectedId,
+              toCity: target.id,
+              soldiers: Math.max(10, Math.floor(cityState.garrison * 0.6)),
+              stance: selectedStance,
+              order: selectedOrder,
+            },
+          });
+        });
+        row.append(info, button);
+        quickList.append(row);
+      }
+      panelElement.append(quickList);
+    } else {
+      panelElement.append(
+        createElement('p', 'quick-hint', '相邻城市都已是你的领土，可以继续扩张或进攻更远目标。'),
+      );
+    }
 
   if (owned) {
     panelElement.append(createElement('p', 'panel-label', '将领'));
@@ -1136,6 +1259,43 @@ function buildPanel() {
   }
 
 
+  if (owned && coachMode) {
+    const children = [...panelElement.children];
+    const start = children.findIndex(
+      (element) =>
+        element.classList.contains('panel-label') &&
+        element.textContent === '将领',
+    );
+    const end = children.findIndex(
+      (element) =>
+        element.classList.contains('panel-label') &&
+        element.textContent === '派兵数量',
+    );
+    if (start >= 0 && end > start) {
+      const advanced = createElement('div', 'panel-advanced');
+      for (const element of children.slice(start, end)) {
+        advanced.append(element);
+      }
+      panelElement.classList.add('beginner');
+      panelElement.classList.toggle('show-advanced', advancedOpen);
+      const toggle = createElement('button', 'advanced-toggle', '');
+      const syncToggle = () => {
+        toggle.textContent = advancedOpen
+          ? '收起高级操作'
+          : '显示高级操作（姿态 / 指令 / 专精 / 将领）';
+      };
+      syncToggle();
+      toggle.addEventListener('click', () => {
+        advancedOpen = !advancedOpen;
+        panelElement.classList.toggle('show-advanced', advancedOpen);
+        syncToggle();
+      });
+      const endNode = children[end] ?? null;
+      panelElement.insertBefore(toggle, endNode);
+      panelElement.insertBefore(advanced, endNode);
+    }
+  }
+
   updatePanel();
 }
 
@@ -1208,12 +1368,12 @@ function updatePanel() {
         );
       }
     }
-    const config = balance.commanders;
-    if (config) {
-      panelRefs.hireCommander.textContent = `招募将领（${config.hireCostGold} 金）`;
+    const commanderConfig = balance.commanders;
+    if (commanderConfig) {
+      panelRefs.hireCommander.textContent = `招募将领（${commanderConfig.hireCostGold} 金）`;
       panelRefs.hireCommander.disabled =
-        commanders.length >= config.maxActive ||
-        (snapshot.players[myPlayerId]?.gold ?? 0) < config.hireCostGold;
+        commanders.length >= commanderConfig.maxActive ||
+        (snapshot.players[myPlayerId]?.gold ?? 0) < commanderConfig.hireCostGold;
     }
 
     for (const [stanceId, button] of panelRefs.stanceButtons ?? []) {
@@ -1581,7 +1741,8 @@ canvas.addEventListener('pointermove', (event) => {
             balance,
             {
               attackerAttack: attackerTech.attack,
-              defenderDefense: defenderTech.defense + defenderBuildings.defense,
+              defenderDefense:
+              (defenderTech.defense ?? 0) + (defenderBuildings.defense ?? 0),
               siegeBonus: attackerTech.siege,
             },
           ).odds * 100,
@@ -1726,6 +1887,72 @@ function setPaused(next) {
 
 function goSetup() {
   window.location.href = `/setup.html?${startQuery.toString()}`;
+}
+
+const COACH_STEPS = [
+  {
+    title: '选中你的城市',
+    description: '地图上红色区域是你的领土。点击任意你的城市，左侧会打开城市面板。',
+    check: () =>
+      selectedId >= 0 &&
+      Boolean(snapshot) &&
+      snapshot.cities[selectedId]?.owner === myPlayerId,
+  },
+  {
+    title: '招募部队',
+    description: '点面板里的「招募步兵 ×10」，补充驻军。',
+    check: () => {
+      if (!snapshot) return false;
+      let total = 0;
+      for (const city of snapshot.cities) {
+        if (city.owner !== myPlayerId) continue;
+        total += city.units?.infantry ?? city.garrison ?? 0;
+      }
+      if (coachStartUnits === null) coachStartUnits = total;
+      return total > coachStartUnits;
+    },
+  },
+  {
+    title: '占领一座城市',
+    description: '在「快捷进攻」里点相邻城市的「进攻」，或拖兵过去占领它。',
+    check: () => {
+      const player = snapshot?.players?.[myPlayerId];
+      if (!player) return false;
+      if (coachStartCities === null) coachStartCities = player.cityCount;
+      return player.cityCount > coachStartCities;
+    },
+  },
+];
+
+function updateCoach() {
+  if (!coachMode || coachDismissed || !snapshot) return;
+  const player = snapshot.players?.[myPlayerId];
+  if (!player) return;
+  while (
+    coachStep < COACH_STEPS.length &&
+    COACH_STEPS[coachStep].check()
+  ) {
+    coachStep += 1;
+  }
+  if (coachStep >= COACH_STEPS.length) {
+    coachElement.classList.add('hidden');
+    if (!coachDismissed) {
+      coachDismissed = true;
+      showToast('新手引导完成，按 Tab 查看国家总览');
+    }
+    return;
+  }
+  const step = COACH_STEPS[coachStep];
+  coachElement.classList.remove('hidden');
+  coachTitle.textContent = `${coachStep + 1}/${COACH_STEPS.length} · ${step.title}`;
+  coachDesc.textContent = step.description;
+}
+
+if (coachMode) {
+  mustElement('coach-dismiss').addEventListener('click', () => {
+    coachDismissed = true;
+    coachElement.classList.add('hidden');
+  });
 }
 
 if (tutorialMode) {
