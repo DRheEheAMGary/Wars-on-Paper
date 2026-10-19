@@ -405,7 +405,7 @@ LOBBY(45s) → MATCH(12min) → RESULT(20s) → LOBBY ...
 - 交付：目录结构、`package.json`、`jsconfig.json`、零依赖 `dev.js`（静态 + SSE 热刷新）、`index.html` 主菜单空壳、`constants.js`、README 更新。
 - 验收：`npm run dev` 打开 8787；修改任意源码 → 浏览器自动刷新；`npm test` 通过。
 
-### M1 地图与渲染（1 人日）
+### M1 地图与渲染（1 人日）✅ 已完成（v0.2.0）
 
 - 交付：`mapgen.js` 全流程、`tools/mapdebug.html` 可视化、Canvas 渲染 + 相机（拖拽/滚轮缩放/边界钳制）、城市名与邻接关系。
 - 验收：同种子逐像素可复现；多边形并集无缝隙、无重叠；邻接对称；拖动缩放 60fps；调试页可看到城市多边形与邻接边。
@@ -488,6 +488,6 @@ LOBBY(45s) → MATCH(12min) → RESULT(20s) → LOBBY ...
 
 ## 13. 下一步
 
-M0 工程骨架已完成（`v0.1.0`，2026-10-19）：`npm run dev` 可打开主菜单空壳并热刷新。下一步 **M1 地图生成与渲染**：交付可拖拽缩放、显示随机边缘城市领土的地图原型，随后进入 M2 核心循环。
+M1 地图生成与渲染已完成（`v0.2.0`，2026-10-19）：`npm run dev` 后打开 `http://localhost:8787/tools/mapdebug.html`，可查看同种子可复现、随机边缘城市领土与邻接关系的地图原型。下一步 **M2 单机核心循环**：经济、招募、行军、战斗结算、占领与计分。
 
 协作约定见 [`AGENT.md`](../AGENT.md)，版本号规则见 [`docs/VERSIONING.md`](VERSIONING.md)。
