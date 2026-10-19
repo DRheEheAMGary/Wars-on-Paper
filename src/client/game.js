@@ -124,6 +124,7 @@ let panelRefs = null;
 /** @type {{ cityId: number, type: string, started: number }[]} */
 let effects = [];
 let selectedStance = 'none';
+let selectedOrder = 'none';
 let myPlayerId = 0;
 /** @type {WebSocket | null} */
 let ws = null;
@@ -414,6 +415,13 @@ function updateStanceButtons() {
   }
 }
 
+function updateOrderButtons() {
+  if (!panelRefs?.orderButtons) return;
+  for (const [orderId, button] of panelRefs.orderButtons) {
+    button.classList.toggle('is-active', orderId === selectedOrder);
+  }
+}
+
 function buildPanel() {
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
@@ -485,6 +493,21 @@ function buildPanel() {
       panelRefs.stanceButtons.set(stanceId, button);
     }
     panelElement.append(stanceRow);
+
+    panelElement.append(createElement('p', 'panel-label', '战场指令'));
+    const orderRow = createElement('div', 'stance-row order-row');
+    panelRefs.orderButtons = new Map();
+    for (const [orderId, order] of Object.entries(balance.battleOrders ?? {})) {
+      const button = createElement('button', '', order.name);
+      button.title = order.description ?? '';
+      button.addEventListener('click', () => {
+        selectedOrder = orderId;
+        updateOrderButtons();
+      });
+      orderRow.append(button);
+      panelRefs.orderButtons.set(orderId, button);
+    }
+    panelElement.append(orderRow);
 
     panelElement.append(createElement('p', 'panel-label', '派兵数量'));
     const dispatch = createElement('div', 'dispatch dispatch-amount');
@@ -683,6 +706,9 @@ function updatePanel() {
 
     for (const [stanceId, button] of panelRefs.stanceButtons ?? []) {
       button.classList.toggle('is-active', stanceId === selectedStance);
+    }
+    for (const [orderId, button] of panelRefs.orderButtons ?? []) {
+      button.classList.toggle('is-active', orderId === selectedOrder);
     }
     for (const [unitType, button] of panelRefs.recruits ?? []) {
       const unit = balance.units[unitType];

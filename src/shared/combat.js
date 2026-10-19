@@ -103,16 +103,23 @@ function applyLosses(units, amount) {
  * @param {any} city
  * @param {any} balance
  * @param {() => number} random
- * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number, stance?: { attack?: number, casualty?: number } }} [options]
+ * @param {{ attackerAttack?: number, defenderDefense?: number, siegeBonus?: number, stance?: { attack?: number, casualty?: number }, order?: any }} [options]
  * @returns {BattleResult}
  */
 export function resolveBattle(attackerUnits, city, balance, random, options = {}) {
   const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
-  const wall = 1 + levelConfig(balance, city.level).wall;
+  const wallBase = 1 + levelConfig(balance, city.level).wall;
+  const order = options.order ?? null;
+  const wall = Math.max(
+    1,
+    wallBase - (order?.wallReduction ?? 0) * (wallBase - 1),
+  );
   const stance = options.stance ?? null;
-  const attackMultiplier = 1 + (options.attackerAttack ?? 0) + (stance?.attack ?? 0);
+  const attackMultiplier =
+    1 + (options.attackerAttack ?? 0) + (stance?.attack ?? 0) + (order?.attack ?? 0);
   const defenseMultiplier = 1 + (options.defenderDefense ?? 0);
-  const attackerCasualtyMultiplier = 1 + (stance?.casualty ?? 0);
+  const attackerCasualtyMultiplier =
+    1 + (stance?.casualty ?? 0) + (order?.casualty ?? 0);
   const siegeBonus = (options.siegeBonus ?? 0) * Math.max(0, wall - 1);
 
   let attacker = normalizeUnits(attackerUnits);
@@ -140,10 +147,13 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
 
   let rounds = 0;
   const factor = balance.combat.casualtyFactor;
+  const maxRounds = order?.retreat
+    ? Math.min(8, balance.combat.maxRounds)
+    : balance.combat.maxRounds;
   while (
     totalUnits(attacker) > 0 &&
     totalUnits(defender) > 0 &&
-    rounds < balance.combat.maxRounds
+    rounds < maxRounds
   ) {
     rounds += 1;
     const noiseA = 1 + (random() * 2 - 1) * balance.combat.randomness;
@@ -175,11 +185,19 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
       defender,
       Math.min(defenderTotal, Math.round(defenderTotal * share * factor)),
     );
+    if (
+      order?.retreat &&
+      totalUnits(attacker) > 0 &&
+      totalUnits(attacker) <= startAttack * 0.5
+    ) {
+      break;
+    }
   }
 
   // If the round cap is reached without elimination, the side with more
-  // effective power wins instead of discarding surviving units.
-  if (totalUnits(attacker) > 0 && totalUnits(defender) > 0) {
+  // effective power wins instead of discarding surviving units. Retreating
+  // armies keep their survivors instead of being decided by power.
+  if (totalUnits(attacker) > 0 && totalUnits(defender) > 0 && !order?.retreat) {
     const attack = attackPower(attacker, defender, balance, wall, siegeBonus);
     const defense = defensePower(defender, balance, wall);
     if (
@@ -193,12 +211,18 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
   }
 
   const captured = totalUnits(defender) <= 0;
+  const survivors = totalUnits(attacker);
   return {
-    attackerLoss: startAttack - totalUnits(attacker),
+    attackerLoss: startAttack - survivors,
     defenderLoss: startDefense - totalUnits(defender),
-    attackerRemaining: captured ? attacker : normalizeUnits({}),
+    attackerRemaining: captured
+      ? attacker
+      : order?.retreat && survivors > 0
+        ? attacker
+        : normalizeUnits({}),
     defenderRemaining: captured ? normalizeUnits({}) : defender,
     captured,
+    retreated: !captured && Boolean(order?.retreat) && survivors > 0,
   };
 }
 
@@ -212,7 +236,11 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
  */
 export function estimateBattle(attackerUnits, city, balance, options = {}) {
   const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
-  const wall = 1 + levelConfig(balance, city.level).wall;
+  const wallBase = 1 + levelConfig(balance, city.level).wall;
+  const wall = Math.max(
+    1,
+    wallBase - (options.order?.wallReduction ?? 0) * (wallBase - 1),
+  );
   const specialDefense = balance.specialSites?.[city.special]?.defense ?? 0;
   const attack =
     attackPower(
@@ -223,7 +251,7 @@ export function estimateBattle(attackerUnits, city, balance, options = {}) {
       (options.siegeBonus ?? 0) * Math.max(0, wall - 1),
     ) *
     terrain.attack *
-    (1 + (options.attackerAttack ?? 0) + (options.stance?.attack ?? 0));
+    (1 + (options.attackerAttack ?? 0) + (options.stance?.attack ?? 0) + (options.order?.attack ?? 0));
   const defense =
     defensePower(
       normalizeUnits(city.units ?? { infantry: city.garrison ?? 0 }),

@@ -185,10 +185,20 @@ export function applyCommand(state, balance, command) {
       casualty: 0,
       travel: 0,
     };
+    const orderId = balance.battleOrders?.[command.order] ? command.order : 'none';
+    const order = balance.battleOrders?.[orderId] ?? {
+      attack: 0,
+      casualty: 0,
+      travel: 0,
+      wallReduction: 0,
+      retreat: false,
+    };
     const travelSeconds = unitTravelSeconds(sent, balance);
     const baseTicks = Math.round((travelSeconds * 1000) / balance.tickMs);
     const logistics =
-      (1 - effects.travel) * (1 + stance.travel) * (1 - commanderBonus.travel);
+      (1 - effects.travel) *
+      (1 + stance.travel + order.travel) *
+      (1 - commanderBonus.travel);
 
     let travelTicks;
     let sea = false;
@@ -212,6 +222,7 @@ export function applyCommand(state, balance, command) {
       soldiers: sentTotal,
       units: sent,
       stance: stanceId,
+      order: orderId,
       commanderId: commander?.id ?? null,
       commanderAttack: commanderBonus.attack,
       departTick: state.tick,

@@ -22,6 +22,7 @@ import {
 import {
   ensureCityUnits,
   mergeUnits,
+  splitUnits,
   syncCityGarrison,
   totalUnits,
   unitTravelSeconds,
@@ -409,6 +410,12 @@ function aiAct(state, balance, player) {
       const targetWeight = target.special
         ? balance.specialSites?.[target.special]?.score ?? 80
         : 0;
+      const order =
+        target.special === 'fortress'
+          ? 'siege'
+          : estimate.odds > attackOdds + 0.2
+            ? 'focus'
+            : 'none';
       const stance =
         estimate.odds > attackOdds + 0.12
           ? 'assault'
@@ -424,6 +431,7 @@ function aiAct(state, balance, player) {
           weight: targetWeight,
           soldiers: city.garrison,
           stance,
+          order,
         };
       }
     }
@@ -435,6 +443,7 @@ function aiAct(state, balance, player) {
       toCity: bestAttack.to,
       soldiers: bestAttack.soldiers,
       stance: bestAttack.stance,
+      order: bestAttack.order,
       owner: player.id,
     });
   }
@@ -667,6 +676,7 @@ export function step(state, balance, commands) {
           fortressDefense,
         siegeBonus: attackerTech.siege,
         stance: balance.stances?.[army.stance ?? 'none'],
+        order: balance.battleOrders?.[army.order ?? 'none'],
       },
     );
     const humanInvolved =
@@ -717,6 +727,35 @@ export function step(state, balance, commands) {
     } else {
       target.units = battle.defenderRemaining;
       syncCityGarrison(target);
+      if (battle.retreated && battle.attackerRemaining) {
+        const survivors = battle.attackerRemaining;
+        const survivingTotal = totalUnits(survivors);
+        const keep = Math.max(1, Math.floor(survivingTotal * 0.5));
+        const retreating = splitUnits(survivors, keep).remaining;
+        const retreatTicks = Math.max(
+          1,
+          Math.round(
+            (unitTravelSeconds(retreating, balance) * 1000) / balance.tickMs,
+          ),
+        );
+        remaining.push({
+          id: state.nextArmyId,
+          owner: army.owner,
+          fromCity: target.id,
+          toCity: army.fromCity,
+          soldiers: totalUnits(retreating),
+          units: retreating,
+          stance: army.stance,
+          order: army.order,
+          commanderId: army.commanderId,
+          commanderAttack: army.commanderAttack,
+          departTick: state.tick,
+          arriveTick: state.tick + retreatTicks,
+          sea: army.sea,
+          retreating: true,
+        });
+        state.nextArmyId += 1;
+      }
       attacker.kills += battle.defenderLoss;
       if (target.owner !== null) {
         state.players[target.owner].kills += battle.attackerLoss;

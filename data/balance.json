@@ -501,5 +501,43 @@
   "objectives": {
     "requiredFraction": 0.67,
     "scorePerSite": 80
+  },
+  "battleOrders": {
+    "none": {
+      "name": "强攻",
+      "description": "无特殊效果",
+      "attack": 0,
+      "casualty": 0,
+      "travel": 0,
+      "wallReduction": 0,
+      "retreat": false
+    },
+    "siege": {
+      "name": "围城",
+      "description": "削减 30% 城墙加成，攻击 -10%，行军 +20%",
+      "attack": -0.1,
+      "casualty": 0,
+      "travel": 0.2,
+      "wallReduction": 0.3,
+      "retreat": false
+    },
+    "focus": {
+      "name": "集火",
+      "description": "攻击 +15%，自身伤亡 +10%",
+      "attack": 0.15,
+      "casualty": 0.1,
+      "travel": 0,
+      "wallReduction": 0,
+      "retreat": false
+    },
+    "retreat": {
+      "name": "撤退",
+      "description": "若战败，保留 50% 幸存兵力撤回",
+      "attack": -0.1,
+      "casualty": 0,
+      "travel": 0,
+      "wallReduction": 0,
+      "retreat": true
+    }
   }
 }
