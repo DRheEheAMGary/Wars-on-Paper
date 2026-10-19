@@ -1085,7 +1085,7 @@ function buildMultiPanel() {
       const option = document.createElement('option');
       option.value = String(ratio);
       option.textContent = `${ratio}%`;
-      if (ratio === 50) option.selected = true;
+      if (ratio === 75) option.selected = true;
       ratioSelect.append(option);
     }
     const moveButton = createElement('button', '', '调动');
@@ -1203,7 +1203,7 @@ function buildPanel() {
         odds: estimateDeployOdds(
           cityState,
           target,
-          Math.max(10, Math.floor(cityState.garrison * 0.6)),
+          Math.max(10, Math.floor(cityState.garrison * 0.75)),
         ),
       }))
       .sort((a, b) => b.odds - a.odds)
@@ -1214,7 +1214,7 @@ function buildPanel() {
         createElement(
           'p',
           'quick-hint',
-          '点「进攻」直接派兵，不用拖拽；默认出兵约 60% 驻军。',
+          '点「进攻」直接派兵，不用拖拽；默认出兵约 75% 驻军。',
         ),
       );
       const quickList = createElement('div', 'quick-targets');
@@ -1241,7 +1241,7 @@ function buildPanel() {
               type: 'deploy',
               fromCity: selectedId,
               toCity: target.id,
-              soldiers: Math.max(10, Math.floor(cityState.garrison * 0.6)),
+              soldiers: Math.max(10, Math.floor(cityState.garrison * 0.75)),
               stance: selectedStance,
               order: selectedOrder,
             },
@@ -1326,10 +1326,20 @@ function buildPanel() {
     slider.min = '1';
     const garrison = cityState.garrison;
     slider.max = String(Math.max(1, garrison));
-    slider.value = String(Math.max(1, Math.floor(garrison / 2)));
-    const count = createElement('span', 'dispatch-count', slider.value);
+    slider.value = String(Math.max(1, Math.floor(garrison * 0.75)));
+    panelRefs.amountRatio = 0.75;
+    const count = createElement(
+      'span',
+      'dispatch-count',
+      `${slider.value}（75%）`,
+    );
     slider.addEventListener('input', () => {
-      count.textContent = slider.value;
+      const total = Math.max(1, cityState.garrison);
+      panelRefs.amountRatio = Math.min(
+        1,
+        Math.max(0, Number(slider.value) / total),
+      );
+      count.textContent = `${slider.value}（${Math.round(panelRefs.amountRatio * 100)}%）`;
     });
 
     dispatch.append(slider, count);
@@ -1698,11 +1708,15 @@ function updatePanel() {
   if (panelRefs.amountSlider) {
     const garrison = cityState.garrison;
     panelRefs.amountSlider.max = String(Math.max(1, garrison));
-    let value = Number(panelRefs.amountSlider.value);
-    if (!Number.isFinite(value) || value < 1) value = 1;
-    if (value > garrison) value = Math.max(1, garrison);
-    panelRefs.amountSlider.value = String(value);
-    panelRefs.amountCount.textContent = String(garrison <= 0 ? 0 : value);
+    const ratio = panelRefs.amountRatio ?? 0.75;
+    let value = Math.round(garrison * ratio);
+    value = Math.min(Math.max(0, value), garrison);
+    if (garrison > 0 && value < 1) value = 1;
+    panelRefs.amountSlider.value = String(Math.max(1, value));
+    panelRefs.amountCount.textContent =
+      garrison <= 0
+        ? '0'
+        : `${value}（${Math.round(ratio * 100)}%）`;
   }
 }
 
@@ -1888,7 +1902,7 @@ canvas.addEventListener('pointermove', (event) => {
     dispatchTarget = target === dispatchFrom ? -1 : target;
     const current = snapshot?.cities[selectedId];
     const sliderValue = Number(panelRefs?.amountSlider?.value);
-    dispatchAmount = sliderValue || (current ? Math.max(1, Math.ceil(current.garrison / 2)) : 0);
+    dispatchAmount = sliderValue || (current ? Math.max(1, Math.ceil(current.garrison * 0.75)) : 0);
     dispatchOdds = null;
     if (dispatchTarget >= 0 && dispatchAmount > 0) {
       const targetState = snapshot.cities[dispatchTarget];
@@ -1973,7 +1987,13 @@ function dispatchTo(targetId) {
   const sliderValue = Number(panelRefs?.amountSlider?.value);
   const soldiers = Math.max(
     1,
-    Math.min(sliderValue || Math.ceil(current.garrison / 2), current.garrison),
+    Math.max(
+      1,
+      Math.min(
+        sliderValue || Math.ceil(current.garrison * 0.75),
+        current.garrison,
+      ),
+    ),
   );
   send({
     type: 'command',
