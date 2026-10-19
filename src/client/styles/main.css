@@ -1,20 +1,17 @@
-/* Wars on Paper — bright paper theme.
-   Visual language: warm paper, ink lines, vivid player colours. */
+/* Wars on Paper — white, minimal interface.
+   Structure comes from whitespace and hairline rules, not cards or shadows. */
 
 :root {
-  --paper: #f7f1e3;
-  --paper-deep: #efe4cd;
-  --ink: #2c2a25;
-  --ink-soft: #6f6757;
-  --line: #d8cab0;
-  --accent: #d24a35;
-  --accent-deep: #a83424;
-  --accent-soft: #f5cfc6;
-  --white: #fffdf7;
-  --radius: 16px;
-  --shadow: 0 20px 45px rgba(58, 48, 34, 0.13);
-  --font-display: 'Songti SC', 'Source Han Serif SC', 'Noto Serif SC', Georgia, serif;
-  --font-body: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --white: #ffffff;
+  --ink: #111111;
+  --ink-soft: #6f6f6f;
+  --ink-faint: #b5b5b5;
+  --line: #ececec;
+  --line-strong: #d9d9d9;
+  --accent: #e0492f;
+  --font-sans: 'Inter', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-display: Georgia, 'Times New Roman', 'Songti SC', 'Noto Serif SC', serif;
 }
 
 * {
@@ -25,143 +22,131 @@ html,
 body {
   height: 100%;
   margin: 0;
+  background: var(--white);
 }
 
 body {
-  background-color: var(--paper);
-  background-image:
-    radial-gradient(1100px 650px at 12% 0%, rgba(255, 253, 247, 0.9), transparent 65%),
-    radial-gradient(900px 620px at 92% 100%, rgba(239, 228, 205, 0.75), transparent 62%),
-    repeating-linear-gradient(0deg, rgba(44, 42, 37, 0.028) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(90deg, rgba(44, 42, 37, 0.028) 0 1px, transparent 1px 34px);
   color: var(--ink);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(224, 73, 47, 0.14);
 }
 
 .screen {
-  position: relative;
   display: flex;
   min-height: 100vh;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 36px;
-  padding: 56px 24px 40px;
+  padding: 64px 24px;
 }
 
-.hero {
-  max-width: 720px;
-  text-align: center;
+.column {
+  width: min(560px, 100%);
 }
 
 .eyebrow {
-  margin: 0 0 18px;
-  color: var(--accent-deep);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.34em;
+  margin: 0 0 20px;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
 }
 
 h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(3rem, 8.4vw, 6.2rem);
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  line-height: 1.02;
+  font-size: clamp(2.6rem, 6vw, 4.2rem);
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 1.04;
 }
 
 .tagline {
-  margin: 22px auto 0;
-  max-width: 30em;
+  max-width: 26em;
+  margin: 24px 0 0;
   color: var(--ink-soft);
-  font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+  font-size: 0.95rem;
   line-height: 1.9;
 }
 
 .menu {
-  display: grid;
-  width: min(360px, 100%);
-  gap: 12px;
+  margin-top: 64px;
+  border-top: 1px solid var(--line);
 }
 
-.menu-button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 16px 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--white);
-  box-shadow: 0 2px 0 rgba(44, 42, 37, 0.08);
+.menu-item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  margin: 0;
+  padding: 20px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
   color: var(--ink);
   font-family: inherit;
-  font-size: 1.02rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 1rem;
+  text-align: left;
   cursor: pointer;
   transition:
-    transform 0.14s ease,
-    box-shadow 0.14s ease,
-    border-color 0.14s ease;
+    background-color 0.15s ease,
+    padding-left 0.15s ease;
 }
 
-.menu-button:hover:not(:disabled) {
-  border-color: var(--accent);
-  box-shadow: 0 10px 22px rgba(58, 48, 34, 0.16);
-  transform: translateY(-2px);
+.menu-item:hover:not(:disabled) {
+  padding-left: 10px;
+  background: #fafafa;
 }
 
-.menu-button:focus-visible {
-  outline: 3px solid var(--accent-soft);
-  outline-offset: 2px;
+.menu-item:hover:not(:disabled) .menu-index,
+.menu-item:hover:not(:disabled) .menu-note {
+  color: var(--accent);
 }
 
-.menu-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 0 rgba(44, 42, 37, 0.1);
+.menu-item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 
-.menu-button.primary {
-  border-color: transparent;
-  background: linear-gradient(180deg, var(--accent), var(--accent-deep));
-  box-shadow: 0 12px 26px rgba(168, 52, 36, 0.32);
-  color: #fff8f2;
-}
-
-.menu-button.primary:hover:not(:disabled) {
-  border-color: transparent;
-  box-shadow: 0 16px 32px rgba(168, 52, 36, 0.38);
-}
-
-.menu-button:disabled {
+.menu-item:disabled {
   cursor: not-allowed;
-  opacity: 0.52;
+  color: var(--ink-faint);
 }
 
-.badge {
-  padding: 2px 9px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper-deep);
-  color: var(--ink-soft);
+.menu-index {
+  color: var(--ink-faint);
   font-size: 0.68rem;
-  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.14em;
+  transition: color 0.15s ease;
+}
+
+.menu-label {
+  font-weight: 400;
+}
+
+.menu-note {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
+  transition: color 0.15s ease;
 }
 
 .notice {
   min-height: 1.5em;
-  max-width: 34em;
-  margin: 0;
-  color: var(--accent-deep);
-  font-size: 0.92rem;
+  margin: 20px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
   line-height: 1.7;
-  text-align: center;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -172,21 +157,30 @@ h1 {
 
 .footer {
   display: flex;
-  gap: 16px;
-  margin-top: 28px;
-  color: var(--ink-soft);
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  gap: 20px;
+  margin-top: 72px;
+  color: var(--ink-faint);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 @media (max-width: 520px) {
   .screen {
-    gap: 28px;
-    padding: 40px 18px 28px;
+    padding: 40px 20px;
   }
 
-  .tagline {
-    font-size: 0.95rem;
+  .menu {
+    margin-top: 48px;
+  }
+
+  .menu-item {
+    grid-template-columns: 34px 1fr auto;
+    gap: 12px;
+    padding: 17px 2px;
+  }
+
+  .footer {
+    margin-top: 56px;
   }
 }
