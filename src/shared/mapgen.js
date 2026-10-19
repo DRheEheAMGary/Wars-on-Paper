@@ -3,16 +3,16 @@
  * Deterministic map generation.
  *
  * Pipeline:
- *   1. large rectangular world with a thin ocean margin
+ *   1. large rectangular world with an ocean margin
  *   2. jittered-lattice candidate sites inside the inset rectangle
  *   3. power-diagram cells (random per-city weights) for every candidate site
- *   4. a star-shaped land field (anisotropic + harmonic coastline) plus radial
- *      ocean corridors: taking the cells with the smallest field value and
- *      skipping corridor cells yields exactly `cityCount` land cells split into
- *      several connected continents. A star-shaped region minus radial cuts has
- *      no lakes, so the map never contains enclosed water.
- *   5. shared interior edges are replaced by one deterministic curve used by
- *      both neighbours, then a smooth domain warp deforms shapes
+ *   4. every continent is generated independently: its own random centre,
+ *      anisotropic shape, coastline harmonics and noise. Cells are claimed in
+ *      field order and never touch another continent, so the result looks like
+ *      separate landmasses instead of sectors of one blob. The final world is
+ *      enlarged until the ocean covers 70% of it.
+ *   5. every edge (including the outer boundary) is replaced by one
+ *      deterministic jitter curve shared by both neighbours
  *   6. adjacency graph (within a continent) + terrain + English city names
  *
  * Same seed + options always produce the same map.
@@ -81,12 +81,15 @@ export const MAP_DEFAULTS = Object.freeze({
   cityCount: 160,
 });
 
-/** Share of candidate cells that becomes land (the rest is ocean). */
-const LAND_CANDIDATE_FRACTION_MIN = 0.7;
-const LAND_CANDIDATE_FRACTION_MAX = 0.78;
-
 /** Requested ocean share of the final rectangular world. */
 const OCEAN_FRACTION = 0.7;
+
+/**
+ * The generation rectangle is larger than the old map so wide straits fit while
+ * cell size (and therefore total land area) stays the same; the candidate count
+ * scales with this area.
+ */
+const GENERATION_AREA_SCALE = 1.7;
 
 const QUANT = 1000; // 0.001 world units
 
@@ -269,8 +272,7 @@ function buildTopology(cells) {
 
 /**
  * Replace every edge — including the outer map boundary — with one jittered
- * curve used by both neighbours when there is one. This keeps the tiling exact
- * and prevents perfectly straight coastlines.
+ * curve used by both neighbours when there is one.
  * @param {Point[][]} cells
  * @param {number | string} seed
  * @returns {Point[][]}
@@ -417,44 +419,43 @@ function continentCountFor(cityCount) {
 }
 
 /**
- * Anisotropic, harmonic "star field" with coastline noise: a smooth radial
- * function around a random centre. Taking cells with the smallest value gives a
- * star-shaped, hole-free land region with an irregular coast.
+ * Independent continent shape: anisotropic radial field with strong low
+ * harmonics (peninsulas) plus coastline noise. Small field values are inland.
  * @param {import('./rng.js').Rng} rng
+ * @param {Point} center
  * @param {{ minX: number, minY: number, maxX: number, maxY: number }} bounds
- * @param {(u: number, v: number) => number} noise Smooth noise in [0, 1).
+ * @param {(u: number, v: number) => number} noise
  * @returns {{ center: Point, value: (x: number, y: number) => number }}
  */
-function createStarField(rng, bounds, noise) {
+function createContinentShape(rng, center, bounds, noise) {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
-  const centerX = bounds.minX + width * (0.25 + 0.5 * rng.next());
-  const centerY = bounds.minY + height * (0.25 + 0.5 * rng.next());
   const rotation = rng.range(0, Math.PI * 2);
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
-  const scaleX = rng.range(0.72, 1.28);
-  const scaleY = rng.range(0.72, 1.28);
+  const scaleX = rng.range(0.55, 1.4);
+  const scaleY = rng.range(0.55, 1.4);
   const normScale = Math.min(width, height) * 0.5;
-  const coastNoiseWeight = rng.range(0.1, 0.18);
-  const coastFrequency = rng.range(1.7, 2.6);
-  const detailFrequency = coastFrequency * rng.range(2.0, 2.8);
+  const coastWeight = rng.range(0.1, 0.2);
+  const frequency = rng.range(1.5, 2.6);
+  const offsetU = rng.range(0, 9);
+  const offsetV = rng.range(0, 9);
 
   /** @type {{ harmonic: number, amplitude: number, phase: number }[]} */
   const harmonics = [];
   for (let harmonic = 2; harmonic <= 7; harmonic += 1) {
     harmonics.push({
       harmonic,
-      amplitude: rng.range(0.018, 0.07),
+      amplitude: rng.range(0.035, 0.17) * (harmonic <= 3 ? 1 : 0.55),
       phase: rng.range(0, Math.PI * 2),
     });
   }
 
   return {
-    center: [centerX, centerY],
+    center,
     value(x, y) {
-      const dx = x - centerX;
-      const dy = y - centerY;
+      const dx = x - center[0];
+      const dy = y - center[1];
       const localX = (dx * cos + dy * sin) / scaleX;
       const localY = (-dx * sin + dy * cos) / scaleY;
       const radius = Math.hypot(localX, localY);
@@ -463,90 +464,171 @@ function createStarField(rng, bounds, noise) {
       for (const term of harmonics) {
         shape += term.amplitude * Math.sin(term.harmonic * angle + term.phase);
       }
-      shape = Math.max(0.6, shape);
-
+      shape = Math.max(0.5, shape);
       const u = (x - bounds.minX) / width;
       const v = (y - bounds.minY) / height;
-      const coast =
-        noise(u * coastFrequency, v * coastFrequency) * 0.65 +
-        noise(u * detailFrequency + 0.37, v * detailFrequency + 0.61) * 0.35;
-
-      return radius / shape / normScale + (coast - 0.5) * coastNoiseWeight;
+      const coast = noise(u * frequency + offsetU, v * frequency + offsetV);
+      return radius / shape / normScale + (coast - 0.5) * coastWeight;
     },
   };
 }
 
 /**
- * Build one connected corridor of cells per angle, marching from the star
- * centre to the map edge along the candidate adjacency graph. Thin cell chains
- * guarantee that the star-shaped land is cut into separate continents.
- * @param {Point[]} sites
- * @param {number[][]} neighbors
- * @param {Point} center
- * @param {number[]} angles
- * @returns {Set<number>}
+ * Spread continent centres across the map using farthest-point sampling.
+ * @param {import('./rng.js').Rng} rng
+ * @param {{ minX: number, minY: number, maxX: number, maxY: number }} bounds
+ * @param {number} count
+ * @returns {Point[]}
  */
-function buildCorridorPaths(sites, neighbors, center, angles) {
-  let central = 0;
-  let bestDistance = Infinity;
-  for (let id = 0; id < sites.length; id += 1) {
-    const d = Math.hypot(sites[id][0] - center[0], sites[id][1] - center[1]);
-    if (d < bestDistance) {
-      bestDistance = d;
-      central = id;
-    }
-  }
+function pickContinentCenters(rng, bounds, count) {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  const margin = 0.14;
+  /** @type {Point[]} */
+  const centers = [];
 
-  const corridors = new Set([central]);
-
-  for (const angle of angles) {
-    const dirX = Math.cos(angle);
-    const dirY = Math.sin(angle);
-    let current = central;
-    let currentProjection = 0;
-    const visited = new Set([central]);
-
-    for (let step = 0; step < 1024; step += 1) {
-      let nextId = -1;
-      let nextProjection = -Infinity;
-      for (const neighbour of neighbors[current]) {
-        if (visited.has(neighbour)) continue;
-        const projection =
-          (sites[neighbour][0] - center[0]) * dirX +
-          (sites[neighbour][1] - center[1]) * dirY;
-        if (projection > nextProjection) {
-          nextProjection = projection;
-          nextId = neighbour;
+  for (let index = 0; index < count; index += 1) {
+    /** @type {Point | null} */
+    let best = null;
+    let bestScore = -Infinity;
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const point = /** @type {Point} */ ([
+        rng.range(bounds.minX + width * margin, bounds.maxX - width * margin),
+        rng.range(bounds.minY + height * margin, bounds.maxY - height * margin),
+      ]);
+      let score;
+      if (centers.length === 0) {
+        score = rng.next();
+      } else {
+        let nearest = Infinity;
+        for (const center of centers) {
+          nearest = Math.min(
+            nearest,
+            Math.hypot(point[0] - center[0], point[1] - center[1]),
+          );
         }
+        score = nearest + rng.range(0, Math.min(width, height) * 0.05);
       }
-      if (nextId < 0 || nextProjection <= currentProjection) break;
-      visited.add(nextId);
-      corridors.add(nextId);
-      current = nextId;
-      currentProjection = nextProjection;
+      if (score > bestScore) {
+        bestScore = score;
+        best = point;
+      }
     }
+    centers.push(/** @type {Point} */ (best));
   }
 
-  return corridors;
+  return centers;
 }
 
 /**
- * Grow a corridor set by a number of cell rings.
- * @param {Set<number>} corridor
- * @param {number[][]} neighbors
- * @param {number} rings
- * @returns {Set<number>}
+ * Random continent sizes, roughly proportional to per-continent weight.
+ * @param {import('./rng.js').Rng} rng
+ * @param {number} cityCount
+ * @param {number} count
+ * @returns {number[]}
  */
-function expandCorridor(corridor, neighbors, rings) {
-  let current = new Set(corridor);
-  for (let ring = 0; ring < rings; ring += 1) {
-    const next = new Set(current);
-    for (const id of current) {
-      for (const neighbour of neighbors[id]) next.add(neighbour);
-    }
-    current = next;
+function allocateContinentSizes(rng, cityCount, count) {
+  if (count === 1) return [cityCount];
+
+  const weights = Array.from({ length: count }, () => rng.range(0.5, 1.4));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const sizes = weights.map((weight) =>
+    Math.max(3, Math.floor((cityCount * weight) / total)),
+  );
+
+  let sum = sizes.reduce((accumulator, size) => accumulator + size, 0);
+  let index = 0;
+  while (sum < cityCount) {
+    sizes[index % count] += 1;
+    index += 1;
+    sum += 1;
   }
-  return current;
+  while (sum > cityCount) {
+    if (sizes[index % count] > 3) {
+      sizes[index % count] -= 1;
+      sum -= 1;
+    }
+    index += 1;
+  }
+  return sizes;
+}
+
+/**
+ * Claim `target` cells for one continent in field order. Cells next to another
+ * continent are skipped, so continents never touch. Disconnected fragments are
+ * released and the search continues, so the result stays connected.
+ * @param {number[]} order Candidate ids sorted by field value.
+ * @param {number} target
+ * @param {Map<number, number>} owner Continent id per claimed cell.
+ * @param {number[][]} neighbors
+ * @param {number} continentIndex
+ * @returns {Set<number> | null}
+ */
+function selectContinentCells(order, target, owner, neighbors, continentIndex) {
+  /** @type {Set<number>} */
+  const selected = new Set();
+  let cursor = 0;
+  let safety = 0;
+
+  while (selected.size < target && safety < 50) {
+    safety += 1;
+
+    while (cursor < order.length && selected.size < target) {
+      const id = order[cursor];
+      cursor += 1;
+      if (owner.has(id)) continue;
+
+      let blocked = false;
+      for (const neighbour of neighbors[id]) {
+        const ownerId = owner.get(neighbour);
+        if (ownerId !== undefined && ownerId !== continentIndex) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) continue;
+
+      selected.add(id);
+      owner.set(id, continentIndex);
+    }
+
+    if (selected.size === 0) return null;
+
+    // Keep only the largest connected component, then continue filling.
+    const visited = new Set();
+    /** @type {number[]} */
+    let largest = [];
+    for (const id of selected) {
+      if (visited.has(id)) continue;
+      /** @type {number[]} */
+      const component = [];
+      const stack = [id];
+      visited.add(id);
+      while (stack.length > 0) {
+        const current = /** @type {number} */ (stack.pop());
+        component.push(current);
+        for (const neighbour of neighbors[current]) {
+          if (selected.has(neighbour) && !visited.has(neighbour)) {
+            visited.add(neighbour);
+            stack.push(neighbour);
+          }
+        }
+      }
+      if (component.length > largest.length) largest = component;
+    }
+
+    if (largest.length < selected.size) {
+      const keep = new Set(largest);
+      for (const id of selected) {
+        if (!keep.has(id)) {
+          selected.delete(id);
+          owner.delete(id);
+        }
+      }
+    }
+  }
+
+  return selected.size >= target ? selected : null;
 }
 
 /**
@@ -585,27 +667,26 @@ function findComponents(land, neighbors) {
 
 /**
  * Pick a cell that can be removed from the land while keeping its continent
- * connected. Prefers coastal cells with the largest field value.
+ * connected and without creating a new enclosed lake.
  * @param {Set<number>} land
  * @param {number[][]} neighbors
  * @param {Map<number, number>} continentOf
- * @param {number[]} orderByValueDesc
+ * @param {number[]} order
  * @param {Map<number, number>} continentSizes
- * @param {Set<number>} protectedCells Cells that must not be removed.
- * @param {Set<number>} borderCells Cells that touch the outer ocean; removing
- *   them can never create an enclosed lake.
+ * @param {Set<number>} protectedCells
+ * @param {Set<number>} borderCells
  * @returns {number | null}
  */
 function findRemovableCell(
   land,
   neighbors,
   continentOf,
-  orderByValueDesc,
+  order,
   continentSizes,
   protectedCells,
   borderCells,
 ) {
-  for (const id of orderByValueDesc) {
+  for (const id of order) {
     if (!land.has(id) || protectedCells.has(id)) continue;
     const continent = continentOf.get(id);
     if (continent === undefined) continue;
@@ -617,12 +698,9 @@ function findRemovableCell(
       if (land.has(neighbour)) landNeighbours += 1;
       else oceanNeighbours += 1;
     }
-    // Removing an interior cell without any ocean neighbour would create a
-    // brand-new enclosed lake; only coastal cells are safe in that sense.
     if (!borderCells.has(id) && oceanNeighbours === 0) continue;
     if (landNeighbours <= 1) return id;
 
-    // Non-leaf cell: only remove it if its continent stays connected.
     land.delete(id);
     const size = continentSizes.get(continent) ?? 0;
     const seen = new Set();
@@ -662,8 +740,7 @@ function findRemovableCell(
  * @param {Set<number>} land
  * @param {number[][]} neighbors
  * @param {Map<number, number>} continentOf
- * @param {Set<number>} corridors
- * @param {number[]} orderByValueDesc
+ * @param {number[]} order
  * @param {number} siteCount
  * @param {Set<number>} borderCells
  * @returns {number} Remaining lake count (should be 0).
@@ -672,8 +749,7 @@ function removeLakes(
   land,
   neighbors,
   continentOf,
-  corridors,
-  orderByValueDesc,
+  order,
   siteCount,
   borderCells,
 ) {
@@ -682,7 +758,7 @@ function removeLakes(
   /** @type {number[]} */
   const lakes = [];
   for (let id = 0; id < siteCount; id += 1) {
-    if (land.has(id) || corridors.has(id) || borderCells.has(id)) continue;
+    if (land.has(id) || borderCells.has(id)) continue;
     const adjacent = neighbors[id];
     if (adjacent.length === 0) continue;
     if (adjacent.every((neighbour) => land.has(neighbour))) lakes.push(id);
@@ -692,16 +768,13 @@ function removeLakes(
   const protectedCells = new Set(lakes);
   for (const lakeId of lakes) {
     land.add(lakeId);
-    let assigned = false;
     for (const neighbour of neighbors[lakeId]) {
       if (!land.has(neighbour)) continue;
       const continent = continentOf.get(neighbour);
       if (continent === undefined) continue;
       continentOf.set(lakeId, continent);
-      assigned = true;
       break;
     }
-    if (!assigned) continentOf.delete(lakeId);
   }
 
   /** @type {Map<number, number>} */
@@ -716,7 +789,7 @@ function removeLakes(
       land,
       neighbors,
       continentOf,
-      orderByValueDesc,
+      order,
       continentSizes,
       protectedCells,
       borderCells,
@@ -730,10 +803,9 @@ function removeLakes(
     }
   }
 
-  // Report any enclosed water cell that still has land on every side.
   let remaining = 0;
   for (let id = 0; id < siteCount; id += 1) {
-    if (land.has(id) || corridors.has(id) || borderCells.has(id)) continue;
+    if (land.has(id) || borderCells.has(id)) continue;
     const adjacent = neighbors[id];
     if (adjacent.length > 0 && adjacent.every((neighbour) => land.has(neighbour))) {
       remaining += 1;
@@ -797,21 +869,19 @@ export function generateMap(options = {}) {
   }
 
   const dimensionRng = createRng(deriveSeed(seed, 'dimensions'));
-  const width = options.width ?? 2450 + dimensionRng.int(0, 350);
-  const height = options.height ?? 1450 + dimensionRng.int(0, 350);
+  // Scales with GENERATION_AREA_SCALE so cell size (and land area) stays put.
+  const width = options.width ?? 3200 + dimensionRng.int(0, 460);
+  const height = options.height ?? 1890 + dimensionRng.int(0, 460);
   if (!(width > 0) || !(height > 0)) {
     throw new RangeError('width and height must be positive');
   }
 
   const layoutRng = createRng(deriveSeed(seed, 'layout'));
-  const landCandidateFraction = layoutRng.range(
-    LAND_CANDIDATE_FRACTION_MIN,
-    LAND_CANDIDATE_FRACTION_MAX,
-  );
+  const landCandidateFraction = layoutRng.range(0.7, 0.78);
   const continentTarget = continentCountFor(cityCount);
   const candidateCount = Math.max(
     cityCount + continentTarget,
-    Math.ceil(cityCount / landCandidateFraction),
+    Math.ceil((cityCount / landCandidateFraction) * GENERATION_AREA_SCALE),
   );
 
   const margin = Math.round(Math.min(width, height) * 0.06);
@@ -849,8 +919,8 @@ export function generateMap(options = {}) {
 
   const neighbors = buildTopology(cells);
 
-  // Cells that touch the inset rectangle are open to the outer ocean margin;
-  // they are never "lakes" and are safe to remove without enclosing water.
+  // Cells touching the inset rectangle are open to the outer ocean; they are
+  // never lakes and are safe to remove without enclosing water.
   const borderEpsilon = margin + 0.6;
   /** @type {Set<number>} */
   const borderCells = new Set();
@@ -867,100 +937,76 @@ export function generateMap(options = {}) {
   });
 
   const coastNoise = createValueNoise(deriveSeed(seed, 'coast'));
-  const star = createStarField(layoutRng, insetBounds, coastNoise);
-  const fieldValues = sites.map(([x, y]) => star.value(x, y));
-  const orderByValue = sites
-    .map((_, id) => id)
-    .sort((a, b) => fieldValues[a] - fieldValues[b]);
-  const orderByValueDesc = orderByValue.slice().reverse();
+  const trimRng = createRng(deriveSeed(seed, 'trim'));
+  const trimOrder = trimRng.shuffle(sites.map((_, id) => id));
 
-  const baseAngle = layoutRng.range(0, Math.PI * 2);
+  /** @type {Set<number>} */
+  let land = new Set();
+  /** @type {Map<number, number>} */
+  let continentOf = new Map();
+  let built = false;
 
-  /**
-   * @param {number} angle
-   * @returns {number[]}
-   */
-  function corridorAnglesFor(angle) {
-    if (continentTarget <= 1) return [];
-    /** @type {number[]} */
-    const angles = [];
-    for (let i = 0; i < continentTarget; i += 1) {
-      angles.push(angle + (i * Math.PI * 2) / continentTarget);
-    }
-    return angles;
-  }
-
-  /** @type {{ land: Set<number>, corridors: Set<number>, continentOf: Map<number, number>, components: number[][] } | null} */
-  let layout = null;
-  let bestScore = -Infinity;
-
-  // Rotate the corridor layout and retry until every continent has a usable
-  // size; this avoids single-cell islands and disconnected slivers.
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    let corridors;
-    if (continentTarget <= 1) {
-      corridors = new Set();
-    } else {
-      const angle = baseAngle + attempt * (Math.PI / 6);
-      corridors = buildCorridorPaths(
-        sites,
-        neighbors,
-        star.center,
-        corridorAnglesFor(angle),
-      );
-      const rings = attempt % 3;
-      if (rings > 0) corridors = expandCorridor(corridors, neighbors, rings);
-    }
-
+  for (let attempt = 0; attempt < 10 && !built; attempt += 1) {
+    const centers = pickContinentCenters(layoutRng, insetBounds, continentTarget);
+    const sizes = allocateContinentSizes(layoutRng, cityCount, continentTarget);
+    /** @type {Map<number, number>} */
+    const owner = new Map();
     /** @type {Set<number>} */
-    const land = new Set();
-    for (const id of orderByValue) {
-      if (corridors.has(id)) continue;
-      land.add(id);
-      if (land.size >= cityCount) break;
-    }
-    if (land.size < cityCount) continue;
+    const claimed = new Set();
+    let ok = true;
 
-    const { components, continentOf } = findComponents(land, neighbors);
-    const minSize = components.reduce(
-      (smallest, component) => Math.min(smallest, component.length),
-      Infinity,
-    );
-    const score =
-      (components.length >= 2 ? 1000 : 0) +
-      Math.min(components.length, 6) * 100 +
-      Math.min(minSize, 20) * 10;
-
-    if (score > bestScore) {
-      bestScore = score;
-      layout = { land, corridors, continentOf, components };
+    for (let continent = 0; continent < continentTarget; continent += 1) {
+      const shape = createContinentShape(
+        createRng(deriveSeed(seed, `continent:${attempt}:${continent}`)),
+        centers[continent],
+        insetBounds,
+        coastNoise,
+      );
+      const values = sites.map(([x, y]) => shape.value(x, y));
+      const order = sites
+        .map((_, id) => id)
+        .sort((a, b) => values[a] - values[b]);
+      const selected = selectContinentCells(
+        order,
+        sizes[continent],
+        owner,
+        neighbors,
+        continent,
+      );
+      if (selected === null) {
+        ok = false;
+        break;
+      }
+      for (const id of selected) claimed.add(id);
     }
-    if (continentTarget <= 1) break;
-    if (components.length >= Math.min(continentTarget, 3) && minSize >= 3) break;
+
+    if (!ok) continue;
+    land = claimed;
+    continentOf = owner;
+    built = true;
   }
 
-  if (!layout) throw new Error('Failed to build the continent layout');
+  if (!built) throw new Error('Failed to build the continent layout');
 
   const lakeCount = removeLakes(
-    layout.land,
+    land,
     neighbors,
-    layout.continentOf,
-    layout.corridors,
-    orderByValueDesc,
+    continentOf,
+    trimOrder,
     candidateCount,
     borderCells,
   );
 
-  const refreshed = findComponents(layout.land, neighbors);
+  const refreshed = findComponents(land, neighbors);
   /** @type {Map<number, number>} */
   const continentSizesById = new Map();
-  for (const id of layout.land) {
+  for (const id of land) {
     const continent = refreshed.continentOf.get(id) ?? 0;
     continentSizesById.set(continent, (continentSizesById.get(continent) ?? 0) + 1);
   }
 
   const basePolygons = jitterCells(cells, seed);
-  const landIdList = [...layout.land].sort((a, b) => a - b);
+  const landIdList = [...land].sort((a, b) => a - b);
   /** @type {Map<number, number>} */
   const landIndex = new Map();
   landIdList.forEach((oldId, index) => landIndex.set(oldId, index));
@@ -975,13 +1021,12 @@ export function generateMap(options = {}) {
   let areaSum = 0;
   for (const polygon of polygons) areaSum += Math.abs(polygonArea(polygon));
 
-  // Keep the generated landmass exactly as it is, but enlarge the world around
-  // it until the ocean covers 70% of the rectangle. The land is then centred
-  // inside the new frame.
+  // Enlarge the world until the ocean covers 70% of it, then place the land
+  // somewhere inside the frame (random, not forced to the centre).
   const targetWorldArea = areaSum / (1 - OCEAN_FRACTION);
   const scale = Math.sqrt(targetWorldArea / (width * height));
-  const finalWidth = Math.round(width * scale);
-  const finalHeight = Math.round(height * scale);
+  let finalWidth = Math.round(width * scale);
+  let finalHeight = Math.round(height * scale);
 
   let minX = Infinity;
   let minY = Infinity;
@@ -995,8 +1040,20 @@ export function generateMap(options = {}) {
       if (y > maxY) maxY = y;
     }
   }
-  const offsetX = finalWidth / 2 - (minX + maxX) / 2;
-  const offsetY = finalHeight / 2 - (minY + maxY) / 2;
+  const landWidth = maxX - minX;
+  const landHeight = maxY - minY;
+  const padding = Math.max(8, Math.round(Math.min(width, height) * 0.012));
+  finalWidth = Math.max(finalWidth, Math.ceil(landWidth + padding * 2));
+  finalHeight = Math.max(finalHeight, Math.ceil(landHeight + padding * 2));
+
+  const offsetX = layoutRng.range(
+    padding - minX,
+    Math.max(padding - minX, finalWidth - padding - maxX),
+  );
+  const offsetY = layoutRng.range(
+    padding - minY,
+    Math.max(padding - minY, finalHeight - padding - maxY),
+  );
 
   const finalPolygons = polygons.map((polygon) =>
     polygon.map(([x, y]) => /** @type {Point} */ ([x + offsetX, y + offsetY])),
