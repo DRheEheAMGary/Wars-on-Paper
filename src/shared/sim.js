@@ -159,11 +159,21 @@ function checkEnd(state, balance) {
       const alive = state.players.filter(
         (/** @type {any} */ player) => player.cityCount > 0,
       );
-      if (alive.length <= 1) {
+      // A solo test room should keep running; only end when all cities are lost.
+      const solo = state.players.length <= 1;
+      if (alive.length === 0) {
         state.phase = 'ended';
         state.result = {
-          outcome: alive.length === 1 ? 'victory' : 'ended',
-          winner: alive[0]?.id ?? null,
+          outcome: 'ended',
+          winner: null,
+          wave: state.wave ?? 0,
+          ranking: ranking(state),
+        };
+      } else if (!solo && alive.length === 1) {
+        state.phase = 'ended';
+        state.result = {
+          outcome: 'victory',
+          winner: alive[0].id,
           wave: state.wave ?? 0,
           ranking: ranking(state),
         };

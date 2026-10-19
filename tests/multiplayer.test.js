@@ -114,6 +114,17 @@ test('multiplayer endless ends when only one player has cities', () => {
   assert.equal(state.result.winner, 0);
 });
 
+test('solo endless test rooms do not end instantly', () => {
+  const state = createMultiplayerMatch(
+    map,
+    balance,
+    [{ id: 0, name: 'A' }],
+    { mode: 'endless' },
+  );
+  step(state, balance, []);
+  assert.notEqual(state.phase, 'ended');
+});
+
 test('room config falls back to defaults for invalid values', () => {
   assert.deepEqual(
     normalizeRoomConfig({ cityCount: 120, matchSeconds: 60, maxPlayers: 3 }),
