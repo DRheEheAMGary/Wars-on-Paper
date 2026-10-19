@@ -45,7 +45,7 @@ function ownerColor(state, owner) {
  * @param {import('../../shared/mapgen.js').GameMap} map
  * @param {any} state
  * @param {import('./camera.js').Camera} camera
- * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number }} options
+ * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number, dispatchOdds?: number | null }} options
  */
 export function drawMatch(ctx, map, state, camera, options) {
   const {
@@ -59,6 +59,7 @@ export function drawMatch(ctx, map, state, camera, options) {
     dispatchPoint = null,
     dispatchTarget = -1,
     dispatchAmount = 0,
+    dispatchOdds = null,
   } = options;
   const { zoom } = camera;
   const screen = (/** @type {number} */ pixels) => pixels / zoom;
@@ -140,14 +141,16 @@ export function drawMatch(ctx, map, state, camera, options) {
     }
 
     if (dispatchAmount > 0) {
+      const label =
+        dispatchOdds !== null ? `${dispatchAmount} · ${dispatchOdds}%` : String(dispatchAmount);
       ctx.font = `${screen(12)}px ${FONT_STACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineWidth = screen(3);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
       ctx.fillStyle = '#1b1b1b';
-      ctx.strokeText(String(dispatchAmount), dispatchPoint[0], dispatchPoint[1] - screen(13));
-      ctx.fillText(String(dispatchAmount), dispatchPoint[0], dispatchPoint[1] - screen(13));
+      ctx.strokeText(label, dispatchPoint[0], dispatchPoint[1] - screen(13));
+      ctx.fillText(label, dispatchPoint[0], dispatchPoint[1] - screen(13));
     }
   }
 

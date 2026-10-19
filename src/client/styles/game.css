@@ -419,3 +419,7 @@ body.game-page {
   outline: 1px dashed var(--ink);
   outline-offset: 3px;
 }
+
+.dispatch-amount {
+  margin-bottom: 10px;
+}

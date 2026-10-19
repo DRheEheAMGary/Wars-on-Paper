@@ -66,6 +66,7 @@ let dispatchFrom = -1;
 let dispatchPoint = null;
 let dispatchTarget = -1;
 let dispatchAmount = 0;
+let dispatchOdds = null;
 let lastPointerX = 0;
 let lastPointerY = 0;
 let toastTimer = 0;
@@ -261,98 +262,38 @@ function buildPanel() {
     panelElement.append(researchList);
   }
 
-  panelElement.append(
-    createElement('p', 'panel-label', owned ? '可行动目标 · 拖拽派兵（滑条选数量）' : '相邻城市'),
-  );
+  if (owned) {
+    panelElement.append(createElement('p', 'panel-label', '派兵数量'));
+    const dispatch = createElement('div', 'dispatch dispatch-amount');
 
-  const list = createElement('div', 'neighbour-list');
-  const targets = [...city.neighbors, ...(city.seaNeighbors ?? [])];
-  for (const neighbourId of targets) {
-    const neighbour = map.cities[neighbourId];
-    const row = createElement('div', 'neighbour-row');
-    const info = createElement('span', 'neighbour-info', '');
-    row.append(info);
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'dispatch-range';
+    slider.min = '1';
+    const garrison = cityState.garrison;
+    slider.max = String(Math.max(1, garrison));
+    slider.value = String(Math.max(1, Math.floor(garrison / 2)));
+    const count = createElement('span', 'dispatch-count', slider.value);
+    slider.addEventListener('input', () => {
+      count.textContent = slider.value;
+    });
 
-    const ref = {
-      neighbourId,
-      neighbour,
-      sea: !city.neighbors.includes(neighbourId),
-      info,
-      halfButton: null,
-      allButton: null,
-      reinforceButton: null,
-    };
-
-    if (owned) {
-      const dispatch = createElement('div', 'dispatch');
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.className = 'dispatch-range';
-      slider.min = '1';
-      const currentGarrison = snapshot.cities[selectedId].garrison;
-      slider.max = String(Math.max(1, currentGarrison));
-      slider.value = String(Math.max(1, Math.floor(currentGarrison / 2)));
-
-      const count = createElement('span', 'dispatch-count', slider.value);
-      const odds = createElement('span', 'dispatch-odds', '');
-      const action = createElement('button', '', '');
-
-      const refresh = () => {
-        const value = Number(slider.value);
-        count.textContent = String(value);
-        const targetState = snapshot.cities[neighbourId];
-        if (targetState.owner === 0) {
-          odds.textContent = '';
-          return;
-        }
-        const targetInfo = {
-          level: targetState.level,
-          garrison: targetState.garrison,
-          terrain: neighbour.terrain,
-        };
-        const chance = Math.round(
-          estimateBattle(value, targetInfo, balance, militaryMultiplier()).odds * 100,
-        );
-        odds.textContent = `${chance}%`;
-      };
-      slider.addEventListener('input', refresh);
-
-      action.addEventListener('click', () => {
-        const current = snapshot.cities[selectedId];
-        if (!current || current.garrison <= 0) return;
-        const soldiers = Math.max(
-          1,
-          Math.min(Number(slider.value) || 1, current.garrison),
-        );
-        const isOwn = snapshot.cities[neighbourId].owner === 0;
-        worker.postMessage({
-          type: 'command',
-          command: {
-            type: 'deploy',
-            fromCity: selectedId,
-            toCity: neighbourId,
-            soldiers,
-          },
-        });
-        showToast(
-          `${isOwn ? '调兵至' : '派兵前往'} ${neighbour.name}（${soldiers}）`,
-        );
-      });
-
-      dispatch.append(slider, count, odds, action);
-      row.append(dispatch);
-      ref.row = row;
-      ref.slider = slider;
-      ref.count = count;
-      ref.odds = odds;
-      ref.action = action;
-      refresh();
-    }
-
-    list.append(row);
-    panelRefs.rows.set(neighbourId, ref);
+    dispatch.append(slider, count);
+    panelElement.append(dispatch);
+    panelElement.append(
+      createElement(
+        'p',
+        'panel-sub',
+        '按住已选中的城市，拖到相邻或渡海城市派兵；拖到自己的城市即可调兵。',
+      ),
+    );
+    panelRefs.amountSlider = slider;
+    panelRefs.amountCount = count;
+  } else {
+    panelElement.append(
+      createElement('p', 'panel-sub', '点击你自己的城市选中后，按住城市拖到目标城市即可派兵。'),
+    );
   }
-  panelElement.append(list);
 
   updatePanel();
 }
@@ -406,46 +347,14 @@ function updatePanel() {
     }
   }
 
-  const military = militaryMultiplier();
-
-  for (const [neighbourId, ref] of panelRefs.rows) {
-    const neighbourState = snapshot.cities[neighbourId];
-    const ownerText =
-      neighbourState.owner === 0
-        ? '你的城市'
-        : neighbourState.owner === null
-          ? '中立'
-          : '敌方';
-    ref.info.textContent =
-      `${ref.neighbour.name}${ref.sea ? ' · 渡海' : ''} · ${ownerText} · ` +
-      `守军 ${neighbourState.garrison}`;
-
-    if (!ref.slider) continue;
+  if (panelRefs.amountSlider) {
     const garrison = cityState.garrison;
-    const maxSoldiers = Math.max(1, garrison);
-    ref.slider.max = String(maxSoldiers);
-    let value = Number(ref.slider.value);
+    panelRefs.amountSlider.max = String(Math.max(1, garrison));
+    let value = Number(panelRefs.amountSlider.value);
     if (!Number.isFinite(value) || value < 1) value = 1;
     if (value > garrison) value = Math.max(1, garrison);
-    ref.slider.value = String(value);
-    ref.count.textContent = String(garrison <= 0 ? 0 : value);
-
-    const isOwn = neighbourState.owner === 0;
-    ref.action.textContent = isOwn ? '调兵' : '派兵';
-    ref.action.disabled = garrison <= 0;
-    if (isOwn) {
-      ref.odds.textContent = '';
-    } else {
-      const targetInfo = {
-        level: neighbourState.level,
-        garrison: neighbourState.garrison,
-        terrain: ref.neighbour.terrain,
-      };
-      const chance = Math.round(
-        estimateBattle(value, targetInfo, balance, military).odds * 100,
-      );
-      ref.odds.textContent = `${chance}%`;
-    }
+    panelRefs.amountSlider.value = String(value);
+    panelRefs.amountCount.textContent = String(garrison <= 0 ? 0 : value);
   }
 }
 
@@ -503,6 +412,7 @@ function render() {
     dispatchPoint,
     dispatchTarget,
     dispatchAmount,
+    dispatchOdds,
   });
 }
 
@@ -560,13 +470,27 @@ canvas.addEventListener('pointermove', (event) => {
     dispatchPoint = world;
     const target = cityAt(map, world, 14 / camera.zoom);
     dispatchTarget = target === dispatchFrom ? -1 : target;
-    const ref = dispatchTarget >= 0 ? panelRefs?.rows.get(dispatchTarget) : null;
     const current = snapshot?.cities[selectedId];
-    dispatchAmount = ref?.slider
-      ? Number(ref.slider.value)
-      : current
-        ? Math.max(1, Math.ceil(current.garrison / 2))
-        : 0;
+    const sliderValue = Number(panelRefs?.amountSlider?.value);
+    dispatchAmount = sliderValue || (current ? Math.max(1, Math.ceil(current.garrison / 2)) : 0);
+    dispatchOdds = null;
+    if (dispatchTarget >= 0 && dispatchAmount > 0) {
+      const targetState = snapshot.cities[dispatchTarget];
+      if (targetState.owner !== 0) {
+        dispatchOdds = Math.round(
+          estimateBattle(
+            dispatchAmount,
+            {
+              level: targetState.level,
+              garrison: targetState.garrison,
+              terrain: map.cities[dispatchTarget].terrain,
+            },
+            balance,
+            militaryMultiplier(),
+          ).odds * 100,
+        );
+      }
+    }
     requestDraw();
     return;
   }
@@ -591,6 +515,7 @@ function resetDrag() {
   dispatchPoint = null;
   dispatchTarget = -1;
   dispatchAmount = 0;
+  dispatchOdds = null;
   canvas.classList.remove('is-dragging');
   requestDraw();
 }
@@ -610,13 +535,10 @@ function dispatchTo(targetId) {
     showToast('只能派往相邻或可渡海的城市');
     return;
   }
-  const ref = panelRefs?.rows.get(targetId);
+  const sliderValue = Number(panelRefs?.amountSlider?.value);
   const soldiers = Math.max(
     1,
-    Math.min(
-      Number(ref?.slider?.value) || Math.ceil(current.garrison / 2),
-      current.garrison,
-    ),
+    Math.min(sliderValue || Math.ceil(current.garrison / 2), current.garrison),
   );
   const isOwn = snapshot.cities[targetId].owner === 0;
   worker.postMessage({
