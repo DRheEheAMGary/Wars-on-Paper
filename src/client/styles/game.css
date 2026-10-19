@@ -1026,3 +1026,72 @@ body.game-page {
   border-color: var(--ink);
   color: var(--ink);
 }
+
+.multi-city-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.multi-city-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.74rem;
+}
+
+.multi-city-row small {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.multi-actions {
+  flex-wrap: wrap;
+}
+
+.multi-actions button {
+  flex: 1 1 44%;
+}
+
+.multi-move {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.multi-select {
+  min-width: 0;
+  flex: 1;
+  padding: 5px 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--white);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.7rem;
+}
+
+.multi-ratio {
+  flex: none;
+  width: 58px;
+}
+
+.multi-move button {
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  background: var(--ink);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.multi-move button:hover {
+  opacity: 0.82;
+}

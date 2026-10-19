@@ -723,6 +723,19 @@ export function step(state, balance, commands) {
   /** @type {any[]} */
   const remaining = [];
   for (const army of state.armies) {
+    if (army.owner >= 0) {
+      const homeId = army.retreating ? army.toCity : army.fromCity;
+      if (state.cities[homeId]?.owner !== army.owner) {
+        if (state.multiplayer || army.owner === 0) {
+          state.events.push({
+            type: 'armyLost',
+            fromCity: army.fromCity,
+            toCity: army.toCity,
+          });
+        }
+        continue;
+      }
+    }
     if (state.tick < army.arriveTick) {
       remaining.push(army);
       continue;

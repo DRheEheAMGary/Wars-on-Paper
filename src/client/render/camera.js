@@ -68,9 +68,10 @@ export class Camera {
 
   /** @param {number} dx @param {number} dy Pixels. */
   panPixels(dx, dy) {
+    // Free panning: the camera may leave the map bounds so players can look
+    // at the ocean around the map. Double-click still resets the view.
     this.centerX -= dx / this.zoom;
     this.centerY -= dy / this.zoom;
-    this.clampCenter();
   }
 
   /**
@@ -89,7 +90,6 @@ export class Camera {
     const after = this.screenToWorld(screenX, screenY);
     this.centerX += before[0] - after[0];
     this.centerY += before[1] - after[1];
-    this.clampCenter();
   }
 
   /** Keep the map covering the viewport; center it when it is smaller. */

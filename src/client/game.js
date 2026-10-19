@@ -149,6 +149,8 @@ let drawQueued = false;
 let panelCityId = -1;
 /** @type {any} */
 let panelRefs = null;
+const multiSelected = new Set();
+let multiPanelSignature = '';
 /** @type {{ cityId: number, type: string, started: number }[]} */
 let effects = [];
 let selectedStance = 'none';
@@ -767,6 +769,8 @@ function renderOverview() {
     }
     row.addEventListener('click', () => {
       toggleOverview(false);
+      multiSelected.clear();
+      multiPanelSignature = '';
       selectedId = city.id;
       renderPanel();
       requestDraw();
@@ -917,6 +921,21 @@ function renderPanel() {
     hidePanel();
     return;
   }
+  if (multiSelected.size > 1) {
+    const signature = [...multiSelected].sort((a, b) => a - b).join(',');
+    if (!panelRefs?.multi || multiPanelSignature !== signature) {
+      multiPanelSignature = signature;
+      buildMultiPanel();
+    } else {
+      updateMultiPanel();
+    }
+    return;
+  }
+  multiPanelSignature = '';
+  if (panelRefs?.multi) {
+    panelRefs = null;
+    panelCityId = -1;
+  }
   const cityState = snapshot.cities[selectedId];
   const owned = cityState.owner === myPlayerId;
   // Rebuild only when the selected city or its ownership changes; snapshots
@@ -971,6 +990,160 @@ function estimateDeployOdds(fromCityState, targetState, soldiers) {
       },
     ).odds * 100,
   );
+}
+
+function buildMultiPanel() {
+  const ids = [...multiSelected].filter(
+    (id) => snapshot.cities[id]?.owner === myPlayerId,
+  );
+  if (ids.length <= 1) {
+    multiSelected.clear();
+    renderPanel();
+    return;
+  }
+  panelElement.classList.remove('hidden', 'beginner', 'show-advanced');
+  panelElement.replaceChildren();
+  panelCityId = selectedId;
+  panelRefs = {
+    multi: true,
+    ids,
+    rows: new Map(),
+    unitButtons: new Map(),
+    upgrade: null,
+    sub: null,
+  };
+
+  panelElement.append(
+    createElement('h3', 'panel-title', `已选 ${ids.length} 座城市`),
+    (panelRefs.sub = createElement('p', 'panel-sub', '')),
+  );
+
+  const list = createElement('div', 'multi-city-list');
+  for (const id of ids) {
+    const city = map.cities[id];
+    const state = snapshot.cities[id];
+    const row = createElement('div', 'multi-city-row');
+    const text = createElement('span', '', `${city?.name ?? `城 ${id + 1}`} · Lv.${state.level}`);
+    const garrison = createElement('small', '', `驻军 ${state.garrison}`);
+    row.append(text, garrison);
+    list.append(row);
+    panelRefs.rows.set(id, { row, garrison });
+  }
+  panelElement.append(list);
+
+  panelElement.append(createElement('p', 'panel-label', '批量操作'));
+  const actions = createElement('div', 'panel-actions multi-actions');
+  const player = snapshot.players[myPlayerId] ?? {};
+  for (const unitType of balance.unitOrder ?? ['infantry']) {
+    const unit = balance.units[unitType];
+    const batch = unit.batch;
+    const totalGold = unit.costGold * batch * ids.length;
+    const button = createElement('button', '', `全部招募${unit.name} ×${batch}`);
+    button.title = `每城 ${unit.costGold * batch} 金，共 ${totalGold} 金`;
+    button.addEventListener('click', () => {
+      for (const id of ids) {
+        send({ type: 'command', command: { type: 'recruit', cityId: id, unitType } });
+      }
+    });
+    panelRefs.unitButtons.set(unitType, { button, totalGold });
+    actions.append(button);
+  }
+  const upgrade = createElement('button', '', '全部升级');
+  upgrade.addEventListener('click', () => {
+    for (const id of ids) {
+      send({ type: 'command', command: { type: 'upgrade', cityId: id } });
+    }
+  });
+  panelRefs.upgrade = upgrade;
+  actions.append(upgrade);
+  const cancel = createElement('button', '', '取消多选');
+  cancel.addEventListener('click', () => {
+    multiSelected.clear();
+    renderPanel();
+    requestDraw();
+  });
+  actions.append(cancel);
+  panelElement.append(actions);
+
+  panelElement.append(createElement('p', 'panel-label', '统一调动'));
+  const moveTargets = snapshot.cities.filter(
+    (city) => city.owner === myPlayerId && !multiSelected.has(city.id),
+  );
+  if (moveTargets.length > 0) {
+    const moveRow = createElement('div', 'multi-move');
+    const targetSelect = document.createElement('select');
+    targetSelect.className = 'multi-select';
+    for (const city of moveTargets) {
+      const option = document.createElement('option');
+      option.value = String(city.id);
+      option.textContent = `${map.cities[city.id]?.name ?? `城 ${city.id + 1}`} · 驻军 ${city.garrison}`;
+      targetSelect.append(option);
+    }
+    const ratioSelect = document.createElement('select');
+    ratioSelect.className = 'multi-select multi-ratio';
+    for (const ratio of [25, 50, 75, 100]) {
+      const option = document.createElement('option');
+      option.value = String(ratio);
+      option.textContent = `${ratio}%`;
+      if (ratio === 50) option.selected = true;
+      ratioSelect.append(option);
+    }
+    const moveButton = createElement('button', '', '调动');
+    moveButton.addEventListener('click', () => {
+      const targetId = Number(targetSelect.value);
+      const ratio = Number(ratioSelect.value) / 100;
+      for (const id of ids) {
+        const city = snapshot.cities[id];
+        const soldiers = Math.max(1, Math.floor(city.garrison * ratio));
+        send({
+          type: 'command',
+          command: {
+            type: 'deploy',
+            fromCity: id,
+            toCity: targetId,
+            soldiers,
+            stance: selectedStance,
+            order: selectedOrder,
+          },
+        });
+      }
+      showToast(`已调动 ${ids.length} 座城市的兵力`);
+    });
+    moveRow.append(targetSelect, ratioSelect, moveButton);
+    panelElement.append(moveRow);
+  } else {
+    panelElement.append(
+      createElement('p', 'quick-hint', '没有其他己方城市可作为调动目标。'),
+    );
+  }
+
+  updateMultiPanel();
+}
+
+function updateMultiPanel() {
+  if (!panelRefs?.multi || !snapshot) return;
+  const ids = panelRefs.ids.filter(
+    (id) => snapshot.cities[id]?.owner === myPlayerId,
+  );
+  if (ids.length <= 1) {
+    multiSelected.clear();
+    renderPanel();
+    return;
+  }
+  const player = snapshot.players[myPlayerId] ?? {};
+  let totalGarrison = 0;
+  for (const id of ids) {
+    const city = snapshot.cities[id];
+    totalGarrison += city.garrison;
+    const entry = panelRefs.rows.get(id);
+    if (entry) entry.garrison.textContent = `驻军 ${city.garrison}`;
+  }
+  if (panelRefs.sub) {
+    panelRefs.sub.textContent = `总驻军 ${totalGarrison} · 按住 Shift 继续加选/取消 · 每城默认 ×10 部队`;
+  }
+  for (const [, entry] of panelRefs.unitButtons ?? []) {
+    entry.button.disabled = (player.gold ?? 0) < entry.totalGold;
+  }
 }
 
 function buildPanel() {
@@ -1647,6 +1820,7 @@ function render() {
     dpr: window.devicePixelRatio || 1,
     hoverId,
     selectedId,
+    selectedIds: [...multiSelected],
     tick: snapshot.tick,
     dispatchFrom,
     dispatchPoint,
@@ -1831,11 +2005,40 @@ function endDrag(event) {
   const id = cityAt(map, world, 12 / camera.zoom);
   if (id < 0) {
     selectedId = -1;
+    multiSelected.clear();
+    multiPanelSignature = '';
     hidePanel();
     requestDraw();
     return;
   }
 
+  if (event.shiftKey) {
+    if (snapshot.cities[id].owner !== myPlayerId) {
+      showToast('Shift 多选只能选择自己的城市');
+      return;
+    }
+    // Seed the set with the currently selected city so Shift+click adds to it.
+    if (
+      multiSelected.size === 0 &&
+      selectedId >= 0 &&
+      selectedId !== id &&
+      snapshot.cities[selectedId]?.owner === myPlayerId
+    ) {
+      multiSelected.add(selectedId);
+    }
+    if (multiSelected.has(id)) multiSelected.delete(id);
+    else multiSelected.add(id);
+    if (multiSelected.size === 0) {
+      multiSelected.clear();
+    }
+    selectedId = id;
+    renderPanel();
+    requestDraw();
+    return;
+  }
+
+  multiSelected.clear();
+  multiPanelSignature = '';
   selectedId = id;
   renderPanel();
   requestDraw();
@@ -2058,4 +2261,10 @@ window.__warsOnPaper = {
   },
   isMultiplayer: () => isMultiplayer,
   playerId: () => myPlayerId,
+  cityScreen: (/** @type {number} */ id) => {
+    const city = map?.cities?.[id];
+    if (!city) return null;
+    const [x, y] = camera.worldToScreen(city.center[0], city.center[1]);
+    return { x, y };
+  },
 };

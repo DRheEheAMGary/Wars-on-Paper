@@ -46,7 +46,7 @@ function ownerColor(state, owner) {
  * @param {import('../../shared/mapgen.js').GameMap} map
  * @param {any} state
  * @param {import('./camera.js').Camera} camera
- * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number, dispatchOdds?: number | null, effects?: any[] }} options
+ * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, selectedIds?: number[], tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number, dispatchOdds?: number | null, effects?: any[] }} options
  */
 export function drawMatch(ctx, map, state, camera, options) {
   const {
@@ -55,6 +55,7 @@ export function drawMatch(ctx, map, state, camera, options) {
     dpr = 1,
     hoverId = -1,
     selectedId = -1,
+    selectedIds = [],
     tick = state.tick,
     dispatchFrom = -1,
     dispatchPoint = null,
@@ -68,6 +69,9 @@ export function drawMatch(ctx, map, state, camera, options) {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, viewWidth, viewHeight);
+  // Keep drawing ocean when the camera pans past the map bounds.
+  ctx.fillStyle = OCEAN_FILL;
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
 
   ctx.save();
   ctx.translate(viewWidth / 2, viewHeight / 2);
@@ -112,6 +116,15 @@ export function drawMatch(ctx, map, state, camera, options) {
     tracePolygon(ctx, map.cities[selectedId].polygon);
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = screen(2.4);
+    ctx.stroke();
+  }
+  for (const id of selectedIds) {
+    if (id === selectedId || !map.cities[id]) continue;
+    tracePolygon(ctx, map.cities[id].polygon);
+    ctx.fillStyle = 'rgba(224, 73, 47, 0.06)';
+    ctx.fill();
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = screen(1.6);
     ctx.stroke();
   }
 
@@ -237,7 +250,7 @@ export function drawMatch(ctx, map, state, camera, options) {
 
   // Garrison numbers.
   if (zoom >= GARRISON_MIN_ZOOM) {
-    ctx.font = `${screen(10)}px ${FONT_STACK}`;
+    ctx.font = `600 ${screen(14)}px ${FONT_STACK}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#2c2a25';
@@ -294,7 +307,7 @@ export function drawMatch(ctx, map, state, camera, options) {
     ctx.fillStyle = ownerColor(state, army.owner);
     ctx.fill();
 
-    ctx.font = `${screen(10)}px ${FONT_STACK}`;
+    ctx.font = `600 ${screen(13)}px ${FONT_STACK}`;
     ctx.fillStyle = '#1b1b1b';
     ctx.fillText(String(army.soldiers), x, y - screen(8));
   }
