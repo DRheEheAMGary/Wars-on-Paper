@@ -37,6 +37,7 @@ import {
  * @property {Point[]} polygon
  * @property {number[]} neighbors
  * @property {number[]} seaNeighbors
+ * @property {'mine' | 'granary' | 'fortress' | null} special
  * @property {'plains' | 'forest' | 'hills' | 'mountain'} terrain
  * @property {number} continent
  * @property {number} area
@@ -59,6 +60,7 @@ import {
  *   continentSizes: number[],
  *   islandCount: number,
  *   seaRouteCount: number,
+ *   specialSiteCount: number,
  *   lakeCount: number,
  * }} meta
  */
@@ -1005,6 +1007,82 @@ function pickIslandSpot(sites, owner, neighbors, borderCells) {
 }
 
 /**
+ * Place strategic sites: a fortress on the biggest continents plus gold mines
+ * and granaries spread far apart, so every map has contested objectives.
+ * @param {MapCity[]} cities
+ * @returns {{ id: number, type: 'mine' | 'granary' | 'fortress' }[]}
+ */
+function attachSpecialSites(cities) {
+  /** @type {{ id: number, type: 'mine' | 'granary' | 'fortress' }[]} */
+  const specials = [];
+  for (const city of cities) city.special = null;
+
+  /** @type {Map<number, number[]>} */
+  const groups = new Map();
+  for (const city of cities) {
+    const list = groups.get(city.continent) ?? [];
+    list.push(city.id);
+    groups.set(city.continent, list);
+  }
+  const continents = [...groups.keys()].sort(
+    (a, b) => (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0) || a - b,
+  );
+
+  const targetCount = Math.max(3, Math.min(7, 3 + Math.floor(cities.length / 120)));
+  const assigned = new Set();
+
+  // Fortresses anchor the largest continents.
+  const fortressCount = Math.max(1, Math.min(2, targetCount - 2));
+  for (const continent of continents.slice(0, Math.min(fortressCount, continents.length))) {
+    let best = -1;
+    let bestDegree = -1;
+    for (const id of groups.get(continent) ?? []) {
+      if (assigned.has(id)) continue;
+      const degree = cities[id].neighbors.length;
+      if (degree > bestDegree) {
+        bestDegree = degree;
+        best = id;
+      }
+    }
+    if (best >= 0) {
+      cities[best].special = 'fortress';
+      assigned.add(best);
+      specials.push({ id: best, type: 'fortress' });
+    }
+  }
+
+  // Remaining sites alternate mine/granary and spread apart.
+  let typeIndex = 0;
+  while (specials.length < targetCount) {
+    let bestId = -1;
+    let bestDistance = -1;
+    for (const city of cities) {
+      if (assigned.has(city.id)) continue;
+      let nearest = Infinity;
+      for (const special of specials) {
+        const other = cities[special.id];
+        const distance = Math.hypot(
+          other.center[0] - city.center[0],
+          other.center[1] - city.center[1],
+        );
+        if (distance < nearest) nearest = distance;
+      }
+      if (nearest > bestDistance) {
+        bestDistance = nearest;
+        bestId = city.id;
+      }
+    }
+    if (bestId < 0) break;
+    const type = typeIndex % 2 === 0 ? 'mine' : 'granary';
+    typeIndex += 1;
+    cities[bestId].special = type;
+    assigned.add(bestId);
+    specials.push({ id: bestId, type });
+  }
+  return specials;
+}
+
+/**
  * Connect continents with sea routes (渡海). Every pair of continents is linked
  * through its closest two cities, so the whole map is reachable.
  * @param {MapCity[]} cities
@@ -1369,6 +1447,7 @@ export function generateMap(options = {}) {
   });
 
   const seaRoutes = attachSeaRoutes(cities);
+  const specialSites = attachSpecialSites(cities);
 
   const worldArea = finalWidth * finalHeight;
   const continentSizes = [...continentSizesById.values()].sort((a, b) => b - a);
@@ -1379,6 +1458,7 @@ export function generateMap(options = {}) {
     height: finalHeight,
     cities,
     seaRoutes,
+    specialSites,
     meta: {
       cityCount: cities.length,
       candidateCount,
@@ -1389,6 +1469,7 @@ export function generateMap(options = {}) {
       continentSizes,
       islandCount,
       seaRouteCount: seaRoutes.length,
+      specialSiteCount: specialSites.length,
       lakeCount,
     },
   };

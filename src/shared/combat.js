@@ -213,6 +213,7 @@ export function resolveBattle(attackerUnits, city, balance, random, options = {}
 export function estimateBattle(attackerUnits, city, balance, options = {}) {
   const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
   const wall = 1 + levelConfig(balance, city.level).wall;
+  const specialDefense = balance.specialSites?.[city.special]?.defense ?? 0;
   const attack =
     attackPower(
       normalizeUnits(attackerUnits),
@@ -230,6 +231,6 @@ export function estimateBattle(attackerUnits, city, balance, options = {}) {
       wall,
     ) *
     terrain.defense *
-    (1 + (options.defenderDefense ?? 0));
+    (1 + (options.defenderDefense ?? 0) + specialDefense);
   return { attack, defense, odds: attack / Math.max(1, attack + defense) };
 }

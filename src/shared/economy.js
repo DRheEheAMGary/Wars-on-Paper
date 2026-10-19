@@ -85,6 +85,11 @@ export function tickEconomy(state, balance) {
         (1 + effects.food) *
         (1 + buildings.food) *
         (1 + governorBonus.food);
+      const special = balance.specialSites?.[city.special] ?? null;
+      if (special) {
+        goldGain += special.gold ?? 0;
+        foodGain += special.food ?? 0;
+      }
 
       const populationCap = Math.round(
         config.populationCap * (1 + effects.populationCap),

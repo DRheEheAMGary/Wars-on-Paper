@@ -227,20 +227,25 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
   }));
 
   /** @type {any[]} */
-  const cities = map.cities.map((city) => ({
-    id: city.id,
-    owner: null,
-    level: 1,
-    population: balance.startPopulation,
-    garrison: balance.neutralGarrison,
-    units: { infantry: balance.neutralGarrison, cavalry: 0, siege: 0 },
-    buildings: [],
-    upgrading: null,
-    terrain: city.terrain,
-    continent: city.continent,
-    neighbors: city.neighbors,
-    seaNeighbors: city.seaNeighbors ?? [],
-  }));
+  const cities = map.cities.map((city) => {
+    const special = balance.specialSites?.[city.special] ?? null;
+    const garrison = special?.garrison ?? balance.neutralGarrison;
+    return {
+      id: city.id,
+      owner: null,
+      level: special?.level ?? 1,
+      population: balance.startPopulation,
+      garrison,
+      units: { infantry: garrison, cavalry: 0, siege: 0 },
+      buildings: [],
+      special: city.special ?? null,
+      upgrading: null,
+      terrain: city.terrain,
+      continent: city.continent,
+      neighbors: city.neighbors,
+      seaNeighbors: city.seaNeighbors ?? [],
+    };
+  });
 
   spawns.forEach((spawn, playerId) => {
     if (!spawn) return;

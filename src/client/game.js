@@ -51,6 +51,7 @@ const statFood = mustElement('stat-food');
 const statCities = mustElement('stat-cities');
 const statScore = mustElement('stat-score');
 const statTimer = mustElement('stat-timer');
+const statObjective = mustElement('stat-objective');
 const standingsElement = mustElement('standings');
 const resultRanking = mustElement('result-ranking');
 const pauseMenu = mustElement('pause-menu');
@@ -288,6 +289,14 @@ function updateHud() {
   statFood.textContent = String(Math.floor(player.food));
   statCities.textContent = String(player.cityCount);
   statScore.textContent = String(player.score);
+  if (snapshot.specialRequired > 0) {
+    const owned = snapshot.cities.filter(
+      (/** @type {any} */ city) => city.special && city.owner === myPlayerId,
+    ).length;
+    statObjective.textContent = `目标 ${owned}/${snapshot.specialRequired}`;
+  } else {
+    statObjective.textContent = '';
+  }
   if (snapshot.mode === 'endless') {
     const nextIn = Math.max(
       0,
@@ -604,9 +613,11 @@ function updatePanel() {
     balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
 
   const composition = compositionText(cityState.units ?? {}, balance);
+  const special = balance.specialSites?.[cityState.special] ?? null;
   panelRefs.sub.textContent =
     `Lv.${cityState.level} · 人口 ${cityState.population} · 驻军 ${cityState.garrison}` +
     (composition ? `（${composition}）` : '') +
+    (special ? ` · ${special.name}：${special.description}` : '') +
     (panelRefs.owned ? '' : ' · 中立城市（点击你自己的城市才能操作）');
 
   if (panelRefs.owned) {
@@ -824,6 +835,30 @@ function showResult() {
   if (!snapshot.result) return;
   const result = snapshot.result;
   const ranking = result.ranking ?? [];
+
+  if (!isMultiplayer && result.outcome === 'objectives') {
+    resultTitle.textContent = '战略目标胜利';
+    resultDetail.textContent =
+      `控制关键据点 · 分数 ${result.score} · 城市 ${result.cities}` +
+      (result.ranking?.findIndex(
+        (/** @type {any} */ entry) => entry.id === 0,
+      ) >= 0
+        ? ` · 第 ${result.ranking.findIndex((/** @type {any} */ entry) => entry.id === 0) + 1} 名`
+        : '');
+    resultRanking.replaceChildren();
+    for (const [index, entry] of ranking.entries()) {
+      const row = createElement('div', entry.id === 0 ? 'result-row me' : 'result-row');
+      const dot = createElement('i', 'standing-dot');
+      dot.style.background = entry.color;
+      row.append(
+        dot,
+        createElement('span', '', `${index + 1}. ${entry.name} · ${entry.cityCount} 城 · ${entry.score} 分`),
+      );
+      resultRanking.append(row);
+    }
+    resultElement.classList.remove('hidden');
+    return;
+  }
 
   if (!isMultiplayer && snapshot.mode === 'endless') {
     const wave = snapshot.result.wave ?? 0;

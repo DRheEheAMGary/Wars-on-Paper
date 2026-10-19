@@ -187,6 +187,24 @@ export function drawMatch(ctx, map, state, camera, options) {
     ctx.stroke();
   }
 
+  // Strategic site badges.
+  const SPECIAL_COLORS = { mine: '#b38a2e', granary: '#4f8a5b', fortress: '#3f4a5a' };
+  const SPECIAL_CHARS = { mine: '矿', granary: '粮', fortress: '要' };
+  for (const city of map.cities) {
+    const special = city.special ?? cityStates[city.id]?.special;
+    if (!special) continue;
+    const [x, y] = city.center;
+    ctx.beginPath();
+    ctx.arc(x - screen(9), y - screen(9), screen(6), 0, Math.PI * 2);
+    ctx.fillStyle = SPECIAL_COLORS[special] ?? '#666';
+    ctx.fill();
+    ctx.font = `${screen(7)}px ${FONT_STACK}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(SPECIAL_CHARS[special] ?? '?', x - screen(9), y - screen(9));
+  }
+
   // City names with simple collision skipping.
   if (zoom >= LABEL_MIN_ZOOM) {
     ctx.font = `${screen(11)}px ${FONT_STACK}`;

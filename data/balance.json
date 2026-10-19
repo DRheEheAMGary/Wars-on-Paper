@@ -465,5 +465,41 @@
       "徐晃",
       "甘宁"
     ]
+  },
+  "specialSites": {
+    "mine": {
+      "name": "金矿",
+      "description": "+4 金币/秒、+80 分",
+      "gold": 4,
+      "food": 0,
+      "garrison": 30,
+      "level": 1,
+      "defense": 0,
+      "score": 80
+    },
+    "granary": {
+      "name": "粮仓",
+      "description": "+2 粮食/秒、+80 分",
+      "gold": 0,
+      "food": 2,
+      "garrison": 30,
+      "level": 1,
+      "defense": 0,
+      "score": 80
+    },
+    "fortress": {
+      "name": "要塞",
+      "description": "+20% 防御、+120 分",
+      "gold": 0,
+      "food": 0,
+      "garrison": 60,
+      "level": 2,
+      "defense": 0.2,
+      "score": 120
+    }
+  },
+  "objectives": {
+    "requiredFraction": 0.67,
+    "scorePerSite": 80
   }
 }

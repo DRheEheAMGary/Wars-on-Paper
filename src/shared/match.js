@@ -132,20 +132,25 @@ export function createMatch(map, balance, options = {}) {
     }));
 
   /** @type {any[]} */
-  const cities = map.cities.map((city) => ({
-    id: city.id,
-    owner: null,
-    level: 1,
-    population: balance.startPopulation,
-    garrison: balance.neutralGarrison,
-    units: { infantry: balance.neutralGarrison, cavalry: 0, siege: 0 },
-    buildings: [],
-    upgrading: null,
-    terrain: city.terrain,
-    continent: city.continent,
-    neighbors: city.neighbors,
-    seaNeighbors: city.seaNeighbors ?? [],
-  }));
+  const cities = map.cities.map((city) => {
+    const special = balance.specialSites?.[city.special] ?? null;
+    const garrison = special?.garrison ?? balance.neutralGarrison;
+    return {
+      id: city.id,
+      owner: /** @type {number | null} */ (null),
+      level: special?.level ?? 1,
+      population: balance.startPopulation,
+      garrison,
+      units: { infantry: garrison, cavalry: 0, siege: 0 },
+      buildings: [],
+      special: city.special ?? null,
+      upgrading: null,
+      terrain: city.terrain,
+      continent: city.continent,
+      neighbors: city.neighbors,
+      seaNeighbors: city.seaNeighbors ?? [],
+    };
+  });
 
   spawns.forEach((spawn, playerId) => {
     if (!spawn) return;
@@ -213,6 +218,7 @@ export function snapshot(state) {
         siege: Math.floor(city.units?.siege ?? 0),
       },
       buildings: [...(city.buildings ?? [])],
+      special: city.special ?? null,
       commanderId:
         city.owner === null
           ? null
@@ -222,6 +228,13 @@ export function snapshot(state) {
       upgrading: city.upgrading ? { endsTick: city.upgrading.endsTick } : null,
     })),
     armies: state.armies.map((/** @type {any} */ army) => ({ ...army })),
+    specialSites: (state.cities ?? [])
+      .filter((/** @type {any} */ city) => city.special)
+      .map((/** @type {any} */ city) => ({ cityId: city.id, type: city.special })),
+    specialRequired: Math.ceil(
+      ((state.cities ?? []).filter((/** @type {any} */ city) => city.special).length) *
+        0.67,
+    ),
     diplomacy: { ...(state.diplomacy ?? {}) },
     diplomacyRequests: [...(state.diplomacyRequests ?? [])],
     diplomacyBlock: { ...(state.diplomacyBlock ?? {}) },

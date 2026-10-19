@@ -37,10 +37,16 @@ function updateStats(state, balance) {
     for (const city of state.cities) if (city.owner === player.id) cityCount += 1;
     player.cityCount = cityCount;
     player.alive = cityCount > 0;
+    let specialScore = 0;
+    for (const city of state.cities) {
+      if (city.owner !== player.id) continue;
+      specialScore += balance.specialSites?.[city.special]?.score ?? 0;
+    }
     player.score = Math.round(
       cityCount * balance.scorePerCity +
         Object.keys(player.tech ?? {}).length * 50 +
-        player.kills * balance.scorePerKill,
+        player.kills * balance.scorePerKill +
+        specialScore,
     );
   }
 }
@@ -67,12 +73,32 @@ function ranking(state) {
 /**
  * @param {any} state
  * @param {any} balance
+ * @param {number} playerId
+ */
+function ownedSpecialSites(state, balance, playerId) {
+  let count = 0;
+  for (const city of state.cities) {
+    if (city.owner === playerId && city.special) count += 1;
+  }
+  return count;
+}
+
+/**
+ * @param {any} state
+ * @param {any} balance
  */
 function checkEnd(state, balance) {
   if (state.phase !== 'playing') return;
   const human = state.players[0];
   const totalCities = state.cities.length;
   const matchTicks = Math.round(((state.matchSeconds ?? balance.matchSeconds) * 1000) / balance.tickMs);
+
+  const specialTotal = state.cities.filter(
+    (/** @type {any} */ city) => city.special,
+  ).length;
+  const specialRequired = Math.ceil(
+    specialTotal * (balance.objectives?.requiredFraction ?? 0.67),
+  );
 
   if (state.multiplayer) {
     const winner = state.players.find(
@@ -86,6 +112,25 @@ function checkEnd(state, balance) {
         score: winner.score,
         cities: winner.cityCount,
         kills: winner.kills,
+        ranking: ranking(state),
+      };
+      return;
+    }
+    const objectiveWinner =
+      specialRequired > 0
+        ? state.players.find(
+            (/** @type {any} */ player) =>
+              ownedSpecialSites(state, balance, player.id) >= specialRequired,
+          )
+        : null;
+    if (objectiveWinner) {
+      state.phase = 'ended';
+      state.result = {
+        outcome: 'objectives',
+        winner: objectiveWinner.id,
+        score: objectiveWinner.score,
+        cities: objectiveWinner.cityCount,
+        kills: objectiveWinner.kills,
         ranking: ranking(state),
       };
       return;
@@ -142,6 +187,22 @@ function checkEnd(state, balance) {
     state.phase = 'won';
     state.result = {
       outcome: 'won',
+      score: human.score,
+      cities: human.cityCount,
+      kills: human.kills,
+      ranking: ranking(state),
+    };
+    return;
+  }
+
+  if (
+    state.mode !== 'endless' &&
+    specialRequired > 0 &&
+    ownedSpecialSites(state, balance, 0) >= specialRequired
+  ) {
+    state.phase = 'won';
+    state.result = {
+      outcome: 'objectives',
       score: human.score,
       cities: human.cityCount,
       kills: human.kills,
@@ -329,6 +390,7 @@ function aiAct(state, balance, player) {
       const defenderTech =
         target.owner === null ? {} : techEffects(state.players[target.owner], balance);
       const defenderBuildings = buildingEffects(balance, target);
+      const fortressEstimate = balance.specialSites?.[target.special]?.defense ?? 0;
       const penalty =
         player.betrayalUntil > state.tick
           ? balance.diplomacy?.betrayPenalty ?? 0.1
@@ -339,10 +401,14 @@ function aiAct(state, balance, player) {
         balance,
         {
           attackerAttack: Math.max(0, effects.attack - penalty),
-          defenderDefense: defenderTech.defense + defenderBuildings.defense,
+          defenderDefense:
+            defenderTech.defense + defenderBuildings.defense + fortressEstimate,
           siegeBonus: effects.siege,
         },
       );
+      const targetWeight = target.special
+        ? balance.specialSites?.[target.special]?.score ?? 80
+        : 0;
       const stance =
         estimate.odds > attackOdds + 0.12
           ? 'assault'
@@ -350,11 +416,12 @@ function aiAct(state, balance, player) {
             ? 'raid'
             : 'none';
       if (estimate.odds < attackOdds) continue;
-      if (!bestAttack || estimate.odds > bestAttack.odds) {
+      if (!bestAttack || estimate.odds + targetWeight / 1000 > bestAttack.odds + (bestAttack.weight ?? 0) / 1000) {
         bestAttack = {
           from: city.id,
           to: targetId,
           odds: estimate.odds,
+          weight: targetWeight,
           soldiers: city.garrison,
           stance,
         };
@@ -568,6 +635,8 @@ export function step(state, balance, commands) {
       target.owner === null ? null : state.players[target.owner];
     const defenderTech = defender ? techEffects(defender, balance) : {};
     const defenderBuildings = buildingEffects(balance, target);
+    const fortressDefense =
+      balance.specialSites?.[target.special]?.defense ?? 0;
     const previousOwner = target.owner;
     const defenderPlayer =
       previousOwner === null ? null : state.players[previousOwner];
@@ -594,7 +663,8 @@ export function step(state, balance, commands) {
         defenderDefense:
           (defenderTech.defense ?? 0) +
           defenderBuildings.defense +
-          defenderCommanderBonus.defense,
+          defenderCommanderBonus.defense +
+          fortressDefense,
         siegeBonus: attackerTech.siege,
         stance: balance.stances?.[army.stance ?? 'none'],
       },
