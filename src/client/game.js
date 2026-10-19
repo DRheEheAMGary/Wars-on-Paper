@@ -606,6 +606,23 @@ function buildPanel() {
     }
     panelElement.append(orderRow);
 
+    panelElement.append(createElement('p', 'panel-label', '城市专精'));
+    const focusRow = createElement('div', 'stance-row focus-row');
+    panelRefs.focusButtons = new Map();
+    for (const [focusId, focus] of Object.entries(balance.cityFocus ?? {})) {
+      const button = createElement('button', '', focus.name);
+      button.title = focus.description ?? '';
+      button.addEventListener('click', () => {
+        send({
+          type: 'command',
+          command: { type: 'specialize', cityId: selectedId, focus: focusId },
+        });
+      });
+      focusRow.append(button);
+      panelRefs.focusButtons.set(focusId, button);
+    }
+    panelElement.append(focusRow);
+
     panelElement.append(createElement('p', 'panel-label', '派兵数量'));
     const dispatch = createElement('div', 'dispatch dispatch-amount');
 
@@ -806,6 +823,10 @@ function updatePanel() {
     }
     for (const [orderId, button] of panelRefs.orderButtons ?? []) {
       button.classList.toggle('is-active', orderId === selectedOrder);
+    }
+    for (const [focusId, button] of panelRefs.focusButtons ?? []) {
+      button.classList.toggle('is-active', cityState.focus === focusId);
+      button.disabled = Boolean(cityState.focus);
     }
     for (const [unitType, button] of panelRefs.recruits ?? []) {
       const unit = balance.units[unitType];

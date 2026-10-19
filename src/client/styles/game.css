@@ -468,7 +468,8 @@ body.game-page {
 }
 
 .stance-row,
-.order-row {
+.order-row,
+.focus-row {
   display: flex;
   gap: 4px;
   margin-bottom: 12px;
@@ -476,7 +477,8 @@ body.game-page {
 }
 
 .stance-row button,
-.order-row button {
+.order-row button,
+.focus-row button {
   flex: 1;
   min-width: 52px;
   padding: 5px 6px;
@@ -489,12 +491,14 @@ body.game-page {
 }
 
 .stance-row button:hover,
-.order-row button:hover {
+.order-row button:hover,
+.focus-row button:hover {
   border-color: var(--ink);
 }
 
 .stance-row button.is-active,
-.order-row button.is-active {
+.order-row button.is-active,
+.focus-row button.is-active {
   border-color: var(--ink);
   background: var(--ink);
   color: #ffffff;

@@ -310,6 +310,30 @@ function aiAct(state, balance, player) {
     }
   }
 
+  // Choose a city specialisation.
+  const unspecialized = owned.filter((/** @type {any} */ city) => !city.focus);
+  if (unspecialized.length > 0 && random() < 0.25) {
+    const city = unspecialized[Math.floor(random() * unspecialized.length)];
+    const frontline = city.neighbors.some(
+      (/** @type {number} */ targetId) => {
+        const owner = state.cities[targetId].owner;
+        return owner !== null && owner !== player.id;
+      },
+    );
+    const focusId = frontline
+      ? 'military'
+      : random() < 0.5
+        ? 'commercial'
+        : 'agricultural';
+    const result = applyCommand(state, balance, {
+      type: 'specialize',
+      cityId: city.id,
+      focus: focusId,
+      owner: player.id,
+    });
+    if (result.ok) return;
+  }
+
   // Build a city improvement when there is a free slot.
   if (random() < 0.14) {
     const buildable = owned.filter(

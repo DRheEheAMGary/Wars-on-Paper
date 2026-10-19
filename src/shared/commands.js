@@ -101,12 +101,19 @@ export function applyCommand(state, balance, command) {
     const unitConfig = balance.units[unitType];
     const config = levelConfig(balance, city.level);
     const batch = unitConfig.batch ?? balance.recruitBatch ?? 10;
-    const gold = unitConfig.costGold * batch;
-    const population = unitConfig.costPopulation * batch;
+    const focus = balance.cityFocus?.[city.focus] ?? null;
+    const focusCost = 1 + (focus?.recruitCost ?? 0);
+    const gold = Math.round(unitConfig.costGold * batch * focusCost);
+    const population = Math.max(
+      1,
+      Math.round(unitConfig.costPopulation * batch * focusCost),
+    );
     ensureCityUnits(city);
     if (player.gold < gold) return { ok: false, error: '金币不足' };
     if (city.population < population) return { ok: false, error: '人口不足' };
-    const capMultiplier = 1 + buildingEffects(balance, city).garrisonCap;
+    const capMultiplier =
+      (1 + buildingEffects(balance, city).garrisonCap) *
+      (1 + (focus?.garrisonCap ?? 0));
     if (totalUnits(city.units) + batch > config.garrisonCap * capMultiplier) {
       return { ok: false, error: '驻军已满' };
     }
@@ -272,6 +279,16 @@ export function applyCommand(state, balance, command) {
     const occupant = commanderAtCity(player, city.id);
     if (occupant && occupant.id !== commander.id) occupant.cityId = null;
     commander.cityId = city.id;
+    return { ok: true };
+  }
+
+  if (command.type === 'specialize') {
+    const city = state.cities[command.cityId];
+    if (!city || city.owner !== player.id) return { ok: false, error: '城市不属于你' };
+    const focusId = command.focus;
+    if (!balance.cityFocus?.[focusId]) return { ok: false, error: '未知专精' };
+    if (city.focus) return { ok: false, error: '该城市已选择专精' };
+    city.focus = focusId;
     return { ok: true };
   }
 

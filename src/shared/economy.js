@@ -67,6 +67,7 @@ export function tickEconomy(state, balance) {
     for (const city of state.cities) {
       if (city.owner !== player.id) continue;
       const config = levelConfig(balance, city.level);
+      const focus = balance.cityFocus?.[city.focus] ?? null;
       const difficultyMultiplier =
         player.isAI && state.aiProfile?.aiGoldMultiplier
           ? state.aiProfile.aiGoldMultiplier
@@ -79,23 +80,37 @@ export function tickEconomy(state, balance) {
         (1 + effects.gold) *
         (1 + buildings.gold) *
         (1 + governorBonus.gold) *
+        (1 + (focus?.gold ?? 0)) *
         difficultyMultiplier;
       foodGain +=
         config.foodPerSecond *
         (1 + effects.food) *
         (1 + buildings.food) *
-        (1 + governorBonus.food);
+        (1 + governorBonus.food) *
+        (1 + (focus?.food ?? 0));
       const special = balance.specialSites?.[city.special] ?? null;
       if (special) {
         goldGain += special.gold ?? 0;
         foodGain += special.food ?? 0;
       }
 
+      let links = 0;
+      for (const neighbour of city.neighbors ?? []) {
+        if (state.cities[neighbour]?.owner === player.id) links += 1;
+      }
+      goldGain +=
+        (balance.trade?.goldPerLinkedCity ?? 0.25) *
+        Math.min(links, balance.trade?.maxLinks ?? 3);
+
       const populationCap = Math.round(
-        config.populationCap * (1 + effects.populationCap),
+        config.populationCap *
+          (1 + effects.populationCap) *
+          (1 + (focus?.populationCap ?? 0)),
       );
       const growth =
-        balance.populationGrowthPerSecond * (1 + 0.25 * (city.level - 1));
+        balance.populationGrowthPerSecond *
+        (1 + 0.25 * (city.level - 1)) *
+        (1 + (focus?.growth ?? 0));
       city.population = Math.min(populationCap, city.population + growth * dt);
 
       syncCityGarrison(city);
