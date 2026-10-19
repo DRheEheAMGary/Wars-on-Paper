@@ -5,10 +5,12 @@
  * Pipeline:
  *   1. irregular convex outline (convex hull + Chaikin smoothing)
  *   2. Poisson-disk city sites inside the outline
- *   3. half-plane Voronoi cells (one per city), snapped to a 0.001 grid
+ *   3. power-diagram cells (Voronoi with random per-city weights), snapped to
+ *      a 0.001 grid, so territory sizes and aspect ratios differ
  *   4. shared interior edges replaced by a single deterministic curve used by
  *      both neighbouring cells, so the tiling stays gap- and overlap-free
- *   5. adjacency graph + terrain + city names
+ *   5. a smooth domain warp that stretches / squashes shapes across the map
+ *   6. adjacency graph + terrain + city names
  *
  * Same seed + options always produce the same map.
  */
@@ -22,6 +24,7 @@ import {
   pointInPolygon,
   polygonArea,
   polygonBounds,
+  polygonCentroid,
 } from './geometry.js';
 
 /** @typedef {[number, number]} Point */
@@ -72,15 +75,17 @@ export const MAP_DEFAULTS = Object.freeze({
 const QUANT = 1000; // 0.001 world units
 
 const CITY_PREFIX = [
-  '临', '青', '白', '赤', '黑', '金', '石', '林', '风', '云',
-  '雪', '松', '江', '河', '山', '海', '原', '野', '安', '平',
-  '新', '古', '北', '南', '东', '西', '高', '长', '大', '小',
+  'Ash', 'Black', 'Bright', 'Broken', 'Clear', 'Cold', 'Copper', 'Dark', 'Dawn', 'Deep',
+  'Dusk', 'East', 'Elm', 'Fair', 'Fallen', 'Far', 'Frost', 'Gold', 'Gray', 'Green',
+  'Grim', 'High', 'Hollow', 'Iron', 'King', 'Lake', 'Long', 'Lost', 'Low', 'Mist',
+  'Moon', 'Moss', 'New', 'North', 'Oak', 'Old', 'Pine', 'Red', 'River', 'Silver',
+  'South', 'Star', 'Stone', 'Storm', 'Sun', 'Thorn', 'West', 'White', 'Wild', 'Wolf',
 ];
 
 const CITY_SUFFIX = [
-  '川', '原', '城', '关', '州', '郡', '谷', '丘', '岭', '渡',
-  '门', '津', '陵', '泽', '野', '阳', '阴', '安', '平', '兴',
-  '盛', '远', '宁', '定', '和', '顺', '昌', '隆', '泰', '康',
+  'brook', 'crest', 'dale', 'field', 'ford', 'gate', 'glen', 'haven', 'hill', 'hold',
+  'keep', 'moor', 'mouth', 'port', 'reach', 'rest', 'ridge', 'rock', 'run', 'shore',
+  'side', 'stead', 'stone', 'vale', 'watch', 'well', 'wick', 'wood',
 ];
 
 /**
@@ -207,12 +212,15 @@ function sampleCitySites(rng, outline, count) {
 }
 
 /**
- * One Voronoi cell per site through successive half-plane clipping.
+ * One power-diagram cell per site through successive half-plane clipping.
+ * Random per-city weights change cell sizes, so territories are not uniformly
+ * sized polygons.
  * @param {Point[]} sites
  * @param {Point[]} outline
+ * @param {number[]} weights Power weights (length² units).
  * @returns {Point[][]}
  */
-function buildCells(sites, outline) {
+function buildCells(sites, outline, weights) {
   /** @type {Point[][]} */
   const cells = [];
   for (let i = 0; i < sites.length; i += 1) {
@@ -224,7 +232,9 @@ function buildCells(sites, outline) {
       const nx = other[0] - site[0];
       const ny = other[1] - site[1];
       const offset =
-        ((site[0] + other[0]) / 2) * nx + ((site[1] + other[1]) / 2) * ny;
+        ((site[0] + other[0]) / 2) * nx +
+        ((site[1] + other[1]) / 2) * ny +
+        (weights[i] - weights[j]) / 2;
       polygon = clipPolygonHalfPlane(polygon, nx, ny, offset);
     }
     const normalized = normalizePolygon(polygon);
@@ -312,12 +322,15 @@ function jitterCells(cells, edgeUsage, seed) {
       const length = distance(first, second) || 1;
       const nx = -(second[1] - first[1]) / length;
       const ny = (second[0] - first[0]) / length;
-      const amplitude = Math.min(24, length * 0.25);
+      const amplitude = Math.min(36, length * 0.3);
+      const style = rng.range(0.35, 1);
+      const subdivisions = rng.int(3, 5);
 
       interior = [];
-      for (let step = 1; step <= 4; step += 1) {
-        const t = step / 5;
-        const offset = rng.range(-1, 1) * amplitude * Math.sin(Math.PI * t);
+      for (let step = 1; step <= subdivisions; step += 1) {
+        const t = step / (subdivisions + 1);
+        const offset =
+          rng.range(-1, 1) * amplitude * style * Math.sin(Math.PI * t);
         interior.push([
           first[0] + (second[0] - first[0]) * t + nx * offset,
           first[1] + (second[1] - first[1]) * t + ny * offset,
@@ -428,6 +441,36 @@ function generateNames(rng, count) {
 }
 
 /**
+ * Smooth domain warp applied to every polygon vertex. Shared vertices are
+ * warped identically, so the tiling stays exact while shapes are locally
+ * stretched or squashed (territory aspect ratios vary across the map).
+ * @param {number | string} seed
+ * @returns {(point: Point) => Point}
+ */
+function createWarp(seed) {
+  const rng = createRng(deriveSeed(seed, 'warp'));
+  const phaseA = rng.range(0, Math.PI * 2);
+  const phaseB = rng.range(0, Math.PI * 2);
+  const phaseC = rng.range(0, Math.PI * 2);
+  const phaseD = rng.range(0, Math.PI * 2);
+  const amplitudeX = rng.range(14, 26);
+  const amplitudeY = rng.range(14, 26);
+  const waveX = rng.range(420, 680);
+  const waveY = rng.range(420, 680);
+
+  return ([x, y]) => [
+    x +
+      amplitudeX *
+        Math.sin((y / waveY) * Math.PI * 2 + phaseA) *
+        Math.cos((x / waveX) * Math.PI * 2 + phaseB),
+    y +
+      amplitudeY *
+        Math.sin((x / waveX) * Math.PI * 2 + phaseC) *
+        Math.cos((y / waveY) * Math.PI * 2 + phaseD),
+  ];
+}
+
+/**
  * Generate a complete, deterministic map.
  * @param {{ seed?: number | string, width?: number, height?: number, cityCount?: number }} [options]
  * @returns {GameMap}
@@ -445,27 +488,55 @@ export function generateMap(options = {}) {
     throw new RangeError('cityCount must be a positive integer');
   }
 
-  const outline = generateOutline(createRng(deriveSeed(seed, 'outline')), width, height);
+  const outlineBase = generateOutline(
+    createRng(deriveSeed(seed, 'outline')),
+    width,
+    height,
+  );
   const centers = sampleCitySites(
     createRng(deriveSeed(seed, 'sites')),
-    outline,
+    outlineBase,
     cityCount,
   );
-  const cells = buildCells(centers, outline);
+
+  const meanCellArea = Math.abs(polygonArea(outlineBase)) / cityCount;
+  const weightRng = createRng(deriveSeed(seed, 'weights'));
+  const weights = centers.map(() => weightRng.range(-0.22, 0.22) * meanCellArea);
+
+  const cells = buildCells(centers, outlineBase, weights);
   const { neighbors, edgeUsage } = buildTopology(cells);
-  const polygons = jitterCells(cells, edgeUsage, seed);
+  const basePolygons = jitterCells(cells, edgeUsage, seed);
+
+  const warp = createWarp(seed);
+  const outline = outlineBase.map(warp);
+  const polygons = basePolygons.map((polygon) => polygon.map(warp));
+  const warpedSites = centers.map(warp);
+
   const names = generateNames(createRng(deriveSeed(seed, 'names')), centers.length);
-  const terrains = assignTerrains(centers, width, height, seed);
+  const terrains = assignTerrains(warpedSites, width, height, seed);
 
   let areaSum = 0;
   /** @type {MapCity[]} */
   const cities = polygons.map((polygon, index) => {
     const area = Math.abs(polygonArea(polygon));
     areaSum += area;
+
+    let center = polygonCentroid(polygon);
+    if (!pointInPolygon(center, polygon)) center = warpedSites[index];
+    if (!pointInPolygon(center, polygon)) {
+      let sumX = 0;
+      let sumY = 0;
+      for (const point of polygon) {
+        sumX += point[0];
+        sumY += point[1];
+      }
+      center = [sumX / polygon.length, sumY / polygon.length];
+    }
+
     return {
       id: index,
       name: names[index],
-      center: centers[index],
+      center,
       polygon,
       neighbors: neighbors[index],
       terrain: terrains[index],

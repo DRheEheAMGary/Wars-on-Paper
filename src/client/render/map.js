@@ -158,10 +158,32 @@ export function drawMap(ctx, map, camera, options) {
     ctx.lineWidth = screen(3);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
     ctx.fillStyle = '#3c3c3c';
+
+    /** @type {{ left: number, right: number, top: number, bottom: number }[]} */
+    const placed = [];
+    const labelHeight = screen(13);
     for (const city of map.cities) {
+      const labelX = city.center[0];
       const labelY = city.center[1] - screen(9);
-      ctx.strokeText(city.name, city.center[0], labelY);
-      ctx.fillText(city.name, city.center[0], labelY);
+      const halfWidth = ctx.measureText(city.name).width / 2 + screen(2);
+      const box = {
+        left: labelX - halfWidth,
+        right: labelX + halfWidth,
+        top: labelY - labelHeight / 2,
+        bottom: labelY + labelHeight / 2,
+      };
+      const overlaps = placed.some(
+        (other) =>
+          box.left < other.right &&
+          box.right > other.left &&
+          box.top < other.bottom &&
+          box.bottom > other.top,
+      );
+      if (overlaps) continue;
+
+      placed.push(box);
+      ctx.strokeText(city.name, labelX, labelY);
+      ctx.fillText(city.name, labelX, labelY);
     }
   }
 

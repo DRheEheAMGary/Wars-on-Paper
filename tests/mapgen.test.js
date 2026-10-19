@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { generateMap } from '../src/shared/mapgen.js';
-import { pointInPolygon, polygonArea } from '../src/shared/geometry.js';
+import {
+  pointInPolygon,
+  polygonArea,
+  polygonBounds,
+} from '../src/shared/geometry.js';
 
 const MAP = generateMap({ seed: 7, cityCount: 60 });
 
@@ -68,6 +72,27 @@ test('city names are unique and centers lie inside their territory', () => {
     assert.ok(city.polygon.length >= 3);
     assert.ok(city.area > 0);
   }
+});
+
+test('city names are English-style', () => {
+  for (const city of MAP.cities) {
+    assert.match(city.name, /^[A-Z][A-Za-z]+$/, `unexpected name ${city.name}`);
+  }
+});
+
+test('territory sizes and aspect ratios vary noticeably', () => {
+  const areas = MAP.cities.map((city) => city.area).sort((a, b) => a - b);
+  const areaSpread = areas[areas.length - 1] / areas[0];
+  assert.ok(areaSpread > 2.5, `area max/min was only ${areaSpread.toFixed(2)}`);
+
+  const aspects = MAP.cities
+    .map((city) => {
+      const bounds = polygonBounds(city.polygon);
+      return (bounds.maxX - bounds.minX) / (bounds.maxY - bounds.minY);
+    })
+    .sort((a, b) => a - b);
+  const aspectSpread = aspects[aspects.length - 1] / aspects[0];
+  assert.ok(aspectSpread > 1.5, `aspect max/min was only ${aspectSpread.toFixed(2)}`);
 });
 
 test('single-city maps are valid', () => {
