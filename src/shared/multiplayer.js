@@ -239,6 +239,7 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
       units: { infantry: garrison, cavalry: 0, siege: 0 },
       buildings: [],
       special: city.special ?? null,
+      focus: null,
       upgrading: null,
       terrain: city.terrain,
       continent: city.continent,

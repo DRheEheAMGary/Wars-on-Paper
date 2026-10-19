@@ -539,5 +539,28 @@
       "wallReduction": 0,
       "retreat": true
     }
+  },
+  "cityFocus": {
+    "military": {
+      "name": "军事",
+      "description": "招募费用 -15%，驻军上限 +20%",
+      "recruitCost": -0.15,
+      "garrisonCap": 0.2
+    },
+    "commercial": {
+      "name": "商业",
+      "description": "金币 +25%",
+      "gold": 0.25
+    },
+    "agricultural": {
+      "name": "农业",
+      "description": "粮食 +20%，人口增长 +25%",
+      "food": 0.2,
+      "growth": 0.25
+    }
+  },
+  "trade": {
+    "goldPerLinkedCity": 0.25,
+    "maxLinks": 3
   }
 }

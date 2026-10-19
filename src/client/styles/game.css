@@ -530,3 +530,60 @@ body.game-page {
 .commander-row button:hover {
   border-color: var(--ink);
 }
+
+.tutorial-panel {
+  position: fixed;
+  top: 64px;
+  right: 18px;
+  z-index: 25;
+  width: 300px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.tutorial-panel.hidden {
+  display: none;
+}
+
+.tutorial-kicker {
+  margin: 0 0 6px;
+  color: var(--ink-faint);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.tutorial-panel h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.tutorial-panel p {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.8;
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tutorial-actions button {
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.tutorial-actions button:hover {
+  border-color: var(--ink);
+}

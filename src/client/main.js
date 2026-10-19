@@ -26,6 +26,8 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     const action = button.getAttribute('data-action');
     if (action === 'single') {
       window.location.href = '/setup.html';
+    } else if (action === 'tutorial') {
+      window.location.href = '/game.html?tutorial=1';
     } else if (action === 'multi') {
       window.location.href = '/multiplayer.html';
     } else if (action === 'help') {

@@ -56,6 +56,10 @@ const standingsElement = mustElement('standings');
 const resultRanking = mustElement('result-ranking');
 const pauseMenu = mustElement('pause-menu');
 const pauseDetail = mustElement('pause-detail');
+const tutorialPanel = mustElement('tutorial-panel');
+const tutorialTitle = mustElement('tutorial-title');
+const tutorialDesc = mustElement('tutorial-desc');
+const tutorialComplete = mustElement('tutorial-complete');
 const pauseButton = mustElement('button-pause');
 const speedButton = mustElement('button-speed');
 
@@ -67,6 +71,12 @@ const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
 const roomCode = params.get('room') ?? '';
 const isMultiplayer = Boolean(roomCode);
 const gameMode = params.get('mode') === 'endless' ? 'endless' : 'timed';
+const tutorialMode = params.get('tutorial') === '1';
+const effectiveCityCount = tutorialMode ? 40 : cityCount;
+const effectiveSeed = tutorialMode ? 7777 : seed;
+const effectiveAICount = tutorialMode ? 0 : aiCount;
+const effectiveMatchSeconds = tutorialMode ? 1800 : matchSeconds;
+const effectiveMode = tutorialMode ? 'timed' : gameMode;
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
@@ -131,6 +141,92 @@ let ws = null;
 /** @type {Worker | null} */
 let worker = null;
 let reconnectTimer = 0;
+let tutorialStep = 0;
+let tutorialDone = false;
+
+const TUTORIAL_STEPS = [
+  {
+    title: '选中城市',
+    description: '单击地图上属于你的城市（红色区域），打开左侧城市面板。',
+    check: () =>
+      selectedId >= 0 &&
+      Boolean(snapshot) &&
+      snapshot.cities[selectedId]?.owner === myPlayerId,
+  },
+  {
+    title: '招募部队',
+    description: '在面板中点击「招募步兵 ×10」。',
+    check: () => {
+      if (!snapshot) return false;
+      let total = 0;
+      for (const city of snapshot.cities) {
+        if (city.owner !== myPlayerId) continue;
+        total += city.units?.infantry ?? city.garrison ?? 0;
+      }
+      return total > 180;
+    },
+  },
+  {
+    title: '切换姿态',
+    description: '在「行军姿态」里选择「突击」，体验攻击加成。',
+    check: () => selectedStance !== 'none',
+  },
+  {
+    title: '招募将领',
+    description: '点击「招募将领」雇佣一名新将领。',
+    check: () => {
+      const player = snapshot?.players?.[myPlayerId];
+      return Boolean(player) && (player.commanders ?? []).length > 1;
+    },
+  },
+  {
+    title: '建造建筑',
+    description: '在「建筑」里建造市集、粮仓、兵营或城墙。',
+    check: () =>
+      Boolean(snapshot) &&
+      snapshot.cities.some(
+        (city) => city.owner === myPlayerId && (city.buildings ?? []).length > 0,
+      ),
+  },
+  {
+    title: '研发科技',
+    description: '在「科技」里研发一项科技（需要等待研发倒计时）。',
+    check: () => {
+      const player = snapshot?.players?.[myPlayerId];
+      if (!player) return false;
+      return Boolean(player.research) || Object.keys(player.tech ?? {}).length > 0;
+    },
+  },
+  {
+    title: '占领城市',
+    description: '调好「派兵数量」，从选中城市拖到相邻中立城市，占领它。',
+    check: () => {
+      const player = snapshot?.players?.[myPlayerId];
+      return Boolean(player) && player.cityCount > 3;
+    },
+  },
+];
+
+function updateTutorial() {
+  if (!tutorialMode || tutorialDone || !snapshot) return;
+  while (
+    tutorialStep < TUTORIAL_STEPS.length &&
+    TUTORIAL_STEPS[tutorialStep].check()
+  ) {
+    tutorialStep += 1;
+  }
+  if (tutorialStep >= TUTORIAL_STEPS.length) {
+    tutorialDone = true;
+    tutorialPanel.classList.add('hidden');
+    tutorialComplete.classList.remove('hidden');
+    send({ type: 'pause' });
+    return;
+  }
+  const step = TUTORIAL_STEPS[tutorialStep];
+  tutorialPanel.classList.remove('hidden');
+  tutorialTitle.textContent = `${tutorialStep + 1}/${TUTORIAL_STEPS.length} · ${step.title}`;
+  tutorialDesc.textContent = step.description;
+}
 
 /** @param {any} message */
 function send(message) {
@@ -147,6 +243,7 @@ function applySnapshot(nextSnapshot) {
   handleEvents(snapshot.events ?? []);
   if (selectedId >= 0) renderPanel();
   if (snapshot.phase !== 'playing') showResult();
+  updateTutorial();
   requestDraw();
 }
 
@@ -254,12 +351,12 @@ if (isMultiplayer) {
   send({
     type: 'init',
     config: {
-      seed,
-      cityCount,
-      aiCount,
-      matchSeconds,
+      seed: effectiveSeed,
+      cityCount: effectiveCityCount,
+      aiCount: effectiveAICount,
+      matchSeconds: effectiveMatchSeconds,
       aiProfile: difficulty,
-      mode: gameMode,
+      mode: effectiveMode,
     },
     balance,
   });
@@ -1205,6 +1302,22 @@ function setPaused(next) {
 
 function goSetup() {
   window.location.href = `/setup.html?${startQuery.toString()}`;
+}
+
+if (tutorialMode) {
+  tutorialPanel.classList.remove('hidden');
+  mustElement('tutorial-skip').addEventListener('click', () => {
+    window.location.href = '/setup.html';
+  });
+  mustElement('tutorial-exit').addEventListener('click', () => {
+    window.location.href = '/';
+  });
+  mustElement('tutorial-start').addEventListener('click', () => {
+    window.location.href = '/setup.html';
+  });
+  mustElement('tutorial-home').addEventListener('click', () => {
+    window.location.href = '/';
+  });
 }
 
 pauseButton.addEventListener('click', () => setPaused(!paused));

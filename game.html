@@ -35,6 +35,27 @@
 
     <aside id="city-panel" class="city-panel hidden" aria-live="polite"></aside>
 
+    <aside id="tutorial-panel" class="tutorial-panel hidden" aria-live="polite">
+      <p class="tutorial-kicker">教程模式</p>
+      <h2 id="tutorial-title">开始教程</h2>
+      <p id="tutorial-desc"></p>
+      <div class="tutorial-actions">
+        <button id="tutorial-skip" type="button">跳过教程</button>
+        <button id="tutorial-exit" type="button">返回主菜单</button>
+      </div>
+    </aside>
+
+    <div id="tutorial-complete" class="result hidden">
+      <div class="result-box">
+        <h2>教程完成</h2>
+        <p>你已经掌握了选中、招募、姿态、将领、建筑、科技与占领。</p>
+        <div class="result-actions">
+          <button id="tutorial-start" type="button">开始正式对局</button>
+          <button id="tutorial-home" type="button">返回主菜单</button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <div id="result" class="result hidden">
