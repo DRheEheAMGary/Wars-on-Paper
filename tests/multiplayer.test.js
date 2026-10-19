@@ -241,3 +241,22 @@ test('two clients play, then a reconnect restores the same player and state', { 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('32 players each spawn with three cities on standard maps', () => {
+  const players = Array.from({ length: 32 }, (_, index) => ({
+    id: index,
+    name: `P${index}`,
+  }));
+  for (const cityCount of [160, 240]) {
+    const bigMap = generateMap({ seed: 42, cityCount });
+    const state = createMultiplayerMatch(bigMap, balance, players);
+    assert.equal(state.players.length, 32);
+    for (const player of state.players) {
+      assert.equal(player.cityCount, 3, `player ${player.id} should own 3 cities`);
+    }
+    assert.equal(
+      state.cities.filter((city) => city.owner !== null).length,
+      96,
+    );
+  }
+});

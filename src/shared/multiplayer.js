@@ -64,6 +64,80 @@ function playerColors(count, palette) {
 }
 
 /**
+ * Pick the best unused connected cluster on a continent, preferring components
+ * large enough for a full spawn and then the most connected capital.
+ * @param {import('./mapgen.js').GameMap} map
+ * @param {number} continent
+ * @param {number} count
+ * @param {Set<number>} used
+ * @returns {{ capital: number, cities: number[], continent: number } | null}
+ */
+function pickSpawnCluster(map, continent, count, used) {
+  /** @type {number[]} */
+  const unused = [];
+  for (const city of map.cities) {
+    if (city.continent === continent && !used.has(city.id)) unused.push(city.id);
+  }
+  if (unused.length === 0) return null;
+
+  /** @type {number[][]} */
+  const components = [];
+  const seen = new Set();
+  for (const startId of unused) {
+    if (seen.has(startId)) continue;
+    const component = [];
+    const stack = [startId];
+    seen.add(startId);
+    while (stack.length > 0) {
+      const id = /** @type {number} */ (stack.pop());
+      component.push(id);
+      for (const neighbour of map.cities[id].neighbors) {
+        if (
+          !seen.has(neighbour) &&
+          !used.has(neighbour) &&
+          map.cities[neighbour].continent === continent
+        ) {
+          seen.add(neighbour);
+          stack.push(neighbour);
+        }
+      }
+    }
+    components.push(component);
+  }
+  components.sort((a, b) => b.length - a.length);
+
+  const component = components.find((entry) => entry.length >= count) ?? components[0];
+  if (!component || component.length < 2) return null;
+  const memberSet = new Set(component);
+
+  let capital = component[0];
+  let bestDegree = -1;
+  for (const id of component) {
+    const degree = map.cities[id].neighbors.filter((neighbour) =>
+      memberSet.has(neighbour),
+    ).length;
+    if (degree > bestDegree) {
+      bestDegree = degree;
+      capital = id;
+    }
+  }
+
+  const chosen = [capital];
+  used.add(capital);
+  const queue = map.cities[capital].neighbors.filter((id) => memberSet.has(id));
+  while (chosen.length < Math.min(count, component.length) && queue.length > 0) {
+    const id = /** @type {number} */ (queue.shift());
+    if (used.has(id) || !memberSet.has(id)) continue;
+    chosen.push(id);
+    used.add(id);
+    for (const neighbour of map.cities[id].neighbors) {
+      if (memberSet.has(neighbour) && !used.has(neighbour)) queue.push(neighbour);
+    }
+  }
+  return { capital, cities: chosen, continent };
+}
+
+/**
  * Create a server-authoritative multiplayer match with one spawned cluster per
  * player. No AI opponents are added.
  * @param {import('./mapgen.js').GameMap} map
@@ -90,17 +164,18 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
   const spawns = [];
   for (let index = 0; index < playerInfos.length; index += 1) {
     let spawn = null;
-    for (let attempt = 0; attempt < continents.length; attempt += 1) {
-      const continent = continents[(index + attempt) % continents.length];
-      const candidate = pickSpawnOnContinent(
-        map,
-        continent,
-        balance.spawnCities,
-        used,
-      );
-      if (candidate && candidate.cities.length > 1) {
+    // Try later continents for bigger free clusters, then smaller ones.
+    for (const attempt of [
+      ...continents.map((_, offset) => continents[(index + offset) % continents.length]),
+    ]) {
+      const candidate = pickSpawnCluster(map, attempt, balance.spawnCities, used);
+      if (candidate && candidate.cities.length >= balance.spawnCities) {
         spawn = candidate;
         break;
+      }
+      if (candidate && candidate.cities.length >= 2) {
+        // Keep a smaller fallback but never consume it before checking others.
+        spawn = spawn ?? candidate;
       }
     }
     spawns.push(spawn);
