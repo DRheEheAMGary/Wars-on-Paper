@@ -495,3 +495,34 @@ body.game-page {
   background: var(--ink);
   color: #ffffff;
 }
+
+.commander-list {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.commander-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.commander-row button {
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.commander-row button:hover {
+  border-color: var(--ink);
+}

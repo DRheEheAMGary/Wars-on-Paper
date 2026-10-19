@@ -15,6 +15,11 @@ import {
   buildingSlotsLeft,
 } from '../shared/buildings.js';
 import {
+  commanderAtCity,
+  commanderTraitName,
+  commanderXpToNext,
+} from '../shared/commanders.js';
+import {
   countAllies,
   getRelation,
   isBlocked,
@@ -445,6 +450,18 @@ function buildPanel() {
     panelElement.append(panelRefs.upgradeInfo);
 
   if (owned) {
+    panelElement.append(createElement('p', 'panel-label', '将领'));
+    panelRefs.commanderInfo = createElement('p', 'panel-sub', '');
+    panelElement.append(panelRefs.commanderInfo);
+    panelRefs.commanderList = createElement('div', 'commander-list');
+    panelElement.append(panelRefs.commanderList);
+    panelRefs.commanderSignature = '';
+    panelRefs.hireCommander = createElement('button', '');
+    panelRefs.hireCommander.addEventListener('click', () => {
+      send({ type: 'command', command: { type: 'hireCommander' } });
+    });
+    panelElement.append(panelRefs.hireCommander);
+
     panelElement.append(createElement('p', 'panel-label', '行军姿态'));
     const stanceRow = createElement('div', 'stance-row');
     panelRefs.stanceButtons = new Map();
@@ -596,6 +613,63 @@ function updatePanel() {
     panelRefs.garrisonCapMultiplier =
       1 +
       buildingEffects(balance, { buildings: cityState.buildings ?? [] }).garrisonCap;
+    const me = snapshot.players[myPlayerId] ?? {};
+    const commanders = me.commanders ?? [];
+    const assigned = commanderAtCity(me, selectedId);
+    panelRefs.commanderInfo.textContent = assigned
+      ? `${assigned.name} · ${commanderTraitName(balance, assigned.trait)} Lv.${assigned.level} · XP ${assigned.xp}/${commanderXpToNext(balance, assigned.level)}`
+      : '暂无驻守将领（可在下方派驻）';
+    const commanderSignature = commanders
+      .map(
+        (/** @type {any} */ commander) =>
+          `${commander.id}:${commander.cityId ?? '-'}:${commander.level}`,
+      )
+      .join(',');
+    if (commanderSignature !== panelRefs.commanderSignature) {
+      panelRefs.commanderSignature = commanderSignature;
+      panelRefs.commanderList.replaceChildren();
+      for (const commander of commanders) {
+        if (commander.cityId === selectedId) continue;
+        const row = createElement('div', 'commander-row');
+        const cityName =
+          commander.cityId === null
+            ? '未派驻'
+            : map.cities[commander.cityId]?.name ?? '其它城市';
+        row.append(
+          createElement(
+            'span',
+            'commander-info',
+            `${commander.name} · ${commanderTraitName(balance, commander.trait)} Lv.${commander.level} · ${cityName}`,
+          ),
+        );
+        const assign = createElement('button', '', commander.cityId === null ? '派驻' : '调任');
+        assign.addEventListener('click', () => {
+          send({
+            type: 'command',
+            command: {
+              type: 'assignCommander',
+              commanderId: commander.id,
+              cityId: selectedId,
+            },
+          });
+        });
+        row.append(assign);
+        panelRefs.commanderList.append(row);
+      }
+      if (commanders.length === 0) {
+        panelRefs.commanderList.append(
+          createElement('p', 'panel-sub', '暂无将领，可在下方招募'),
+        );
+      }
+    }
+    const config = balance.commanders;
+    if (config) {
+      panelRefs.hireCommander.textContent = `招募将领（${config.hireCostGold} 金）`;
+      panelRefs.hireCommander.disabled =
+        commanders.length >= config.maxActive ||
+        (snapshot.players[myPlayerId]?.gold ?? 0) < config.hireCostGold;
+    }
+
     for (const [stanceId, button] of panelRefs.stanceButtons ?? []) {
       button.classList.toggle('is-active', stanceId === selectedStance);
     }

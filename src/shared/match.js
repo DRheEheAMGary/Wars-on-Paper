@@ -3,7 +3,7 @@
  * Match state helpers: spawns, players (human + simple AI) and snapshots.
  */
 
-import { hashSeed } from './rng.js';
+import { createRng, hashSeed } from './rng.js';
 
 /**
  * @param {import('./mapgen.js').GameMap} map
@@ -43,6 +43,27 @@ export function pickSpawnOnContinent(map, continent, count, used) {
   }
 
   return { capital, cities: chosen, continent };
+}
+
+/**
+ * One free starting commander, assigned to the player's capital.
+ * @param {any} balance
+ * @param {number|string} seed
+ * @param {number} playerIndex
+ * @param {number} cityId
+ */
+function createStartingCommander(balance, seed, playerIndex, cityId) {
+  const config = balance.commanders;
+  if (!config) return null;
+  const rng = createRng(hashSeed(`${seed}:commander:${playerIndex}`));
+  return {
+    id: 0,
+    name: config.names[rng.int(0, config.names.length - 1)],
+    trait: config.traits[rng.int(0, config.traits.length - 1)].id,
+    level: 1,
+    xp: 0,
+    cityId,
+  };
 }
 
 /**
@@ -105,6 +126,9 @@ export function createMatch(map, balance, options = {}) {
       tech: {},
       research: null,
       betrayalUntil: 0,
+      commanders: [
+        createStartingCommander(balance, seed, index, spawns[index]?.cities[0] ?? null),
+      ].filter(Boolean),
     }));
 
   /** @type {any[]} */
@@ -189,6 +213,12 @@ export function snapshot(state) {
         siege: Math.floor(city.units?.siege ?? 0),
       },
       buildings: [...(city.buildings ?? [])],
+      commanderId:
+        city.owner === null
+          ? null
+          : ((state.players[city.owner]?.commanders ?? []).find(
+              (/** @type {any} */ commander) => commander.cityId === city.id,
+            )?.id ?? null),
       upgrading: city.upgrading ? { endsTick: city.upgrading.endsTick } : null,
     })),
     armies: state.armies.map((/** @type {any} */ army) => ({ ...army })),

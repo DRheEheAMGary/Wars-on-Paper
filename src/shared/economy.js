@@ -6,6 +6,7 @@
 
 import { techEffects } from './tech.js';
 import { buildingEffects } from './buildings.js';
+import { commanderAtCity, commanderEffects } from './commanders.js';
 import { removeUnits, syncCityGarrison, totalUnits } from './units.js';
 
 /**
@@ -71,12 +72,19 @@ export function tickEconomy(state, balance) {
           ? state.aiProfile.aiGoldMultiplier
           : 1;
       const buildings = buildingEffects(balance, city);
+      const governor = commanderAtCity(player, city.id);
+      const governorBonus = commanderEffects(governor, balance);
       goldGain +=
         config.goldPerSecond *
         (1 + effects.gold) *
         (1 + buildings.gold) *
+        (1 + governorBonus.gold) *
         difficultyMultiplier;
-      foodGain += config.foodPerSecond * (1 + effects.food) * (1 + buildings.food);
+      foodGain +=
+        config.foodPerSecond *
+        (1 + effects.food) *
+        (1 + buildings.food) *
+        (1 + governorBonus.food);
 
       const populationCap = Math.round(
         config.populationCap * (1 + effects.populationCap),

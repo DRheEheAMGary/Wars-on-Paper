@@ -4,7 +4,7 @@
  * and its tests.
  */
 
-import { hashSeed } from './rng.js';
+import { createRng, hashSeed } from './rng.js';
 import { pickSpawnOnContinent, snapshot } from './match.js';
 
 export const PROTOCOL_VERSION = 1;
@@ -42,6 +42,26 @@ export function normalizeRoomConfig(input = {}) {
     ? Number(input.maxPlayers)
     : DEFAULT_ROOM_CONFIG.maxPlayers;
   return { cityCount, matchSeconds, maxPlayers };
+}
+
+/**
+ * @param {any} balance
+ * @param {number|string} seed
+ * @param {number} playerIndex
+ * @param {number} cityId
+ */
+function startingCommander(balance, seed, playerIndex, cityId) {
+  const config = balance.commanders;
+  if (!config) return null;
+  const rng = createRng(hashSeed(`${seed}:mp-commander:${playerIndex}`));
+  return {
+    id: 0,
+    name: config.names[rng.int(0, config.names.length - 1)],
+    trait: config.traits[rng.int(0, config.traits.length - 1)].id,
+    level: 1,
+    xp: 0,
+    cityId,
+  };
 }
 
 /**
@@ -201,6 +221,9 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     tech: {},
     research: null,
     betrayalUntil: 0,
+    commanders: [
+      startingCommander(balance, seed, index, spawns[index]?.cities[0] ?? null),
+    ].filter(Boolean),
   }));
 
   /** @type {any[]} */
@@ -311,6 +334,9 @@ export function addLatePlayer(state, balance, map, info) {
     tech: {},
     research: null,
     betrayalUntil: 0,
+    commanders: [
+      startingCommander(balance, state.seed ?? 0, playerId, spawn.cities[0] ?? null),
+    ].filter(Boolean),
   });
 
   for (const id of spawn.cities) {

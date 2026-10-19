@@ -404,5 +404,66 @@
       "casualty": 0,
       "travel": -0.3
     }
+  },
+  "commanders": {
+    "maxActive": 3,
+    "hireCostGold": 300,
+    "maxLevel": 5,
+    "xpPerBattle": 8,
+    "xpPerCapture": 20,
+    "xpLevels": [
+      0,
+      40,
+      100,
+      180,
+      300
+    ],
+    "traits": [
+      {
+        "id": "war",
+        "name": "武略",
+        "description": "从该城出征时攻击 +6%/级",
+        "effects": {
+          "attack": 0.06
+        }
+      },
+      {
+        "id": "guard",
+        "name": "坚守",
+        "description": "驻守时城市防御 +6%/级",
+        "effects": {
+          "defense": 0.06
+        }
+      },
+      {
+        "id": "steward",
+        "name": "治民",
+        "description": "驻城金币/粮食 +5%/级",
+        "effects": {
+          "gold": 0.05,
+          "food": 0.05
+        }
+      },
+      {
+        "id": "swift",
+        "name": "疾行",
+        "description": "从该城出征行军 -5%/级",
+        "effects": {
+          "travel": 0.05
+        }
+      }
+    ],
+    "names": [
+      "张辽",
+      "周瑜",
+      "陆逊",
+      "司马懿",
+      "赵云",
+      "孙策",
+      "吕蒙",
+      "邓艾",
+      "徐晃",
+      "甘宁"
+    ]
   }
 }

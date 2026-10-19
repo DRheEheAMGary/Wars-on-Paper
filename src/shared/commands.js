@@ -11,6 +11,11 @@ import {
   buildingSlotsLeft,
 } from './buildings.js';
 import {
+  commanderAtCity,
+  commanderEffects,
+} from './commanders.js';
+import { createRng, hashSeed } from './rng.js';
+import {
   countAllies,
   getRelation,
   isBlocked,
@@ -172,6 +177,8 @@ export function applyCommand(state, balance, command) {
     syncCityGarrison(from);
 
     const effects = techEffects(player, balance);
+    const commander = commanderAtCity(player, from.id);
+    const commanderBonus = commanderEffects(commander, balance);
     const stanceId = balance.stances?.[command.stance] ? command.stance : 'none';
     const stance = balance.stances?.[stanceId] ?? {
       attack: 0,
@@ -180,7 +187,8 @@ export function applyCommand(state, balance, command) {
     };
     const travelSeconds = unitTravelSeconds(sent, balance);
     const baseTicks = Math.round((travelSeconds * 1000) / balance.tickMs);
-    const logistics = (1 - effects.travel) * (1 + stance.travel);
+    const logistics =
+      (1 - effects.travel) * (1 + stance.travel) * (1 - commanderBonus.travel);
 
     let travelTicks;
     let sea = false;
@@ -204,12 +212,56 @@ export function applyCommand(state, balance, command) {
       soldiers: sentTotal,
       units: sent,
       stance: stanceId,
+      commanderId: commander?.id ?? null,
+      commanderAttack: commanderBonus.attack,
       departTick: state.tick,
       arriveTick: state.tick + travelTicks,
       sea,
     });
     state.nextArmyId += 1;
     return { ok: true, sea };
+  }
+
+  if (command.type === 'hireCommander') {
+    const config = balance.commanders;
+    if (!config) return { ok: false, error: '未启用将领' };
+    player.commanders = player.commanders ?? [];
+    if (player.commanders.length >= config.maxActive) {
+      return { ok: false, error: '将领已满' };
+    }
+    if (player.gold < config.hireCostGold) return { ok: false, error: '金币不足' };
+    player.gold -= config.hireCostGold;
+    const index = player.commanders.length;
+    const rng = createRng(
+      hashSeed(`${state.seed}:hire:${player.id}:${index}:${state.tick}`),
+    );
+    const nextId =
+      player.commanders.reduce(
+        (max, commander) => Math.max(max, commander.id ?? 0),
+        -1,
+      ) + 1;
+    player.commanders.push({
+      id: nextId,
+      name: config.names[rng.int(0, config.names.length - 1)],
+      trait: config.traits[rng.int(0, config.traits.length - 1)].id,
+      level: 1,
+      xp: 0,
+      cityId: null,
+    });
+    return { ok: true };
+  }
+
+  if (command.type === 'assignCommander') {
+    const city = state.cities[command.cityId];
+    if (!city || city.owner !== player.id) return { ok: false, error: '城市不属于你' };
+    const commander = (player.commanders ?? []).find(
+      (entry) => entry.id === command.commanderId,
+    );
+    if (!commander) return { ok: false, error: '将领不存在' };
+    const occupant = commanderAtCity(player, city.id);
+    if (occupant && occupant.id !== commander.id) occupant.cityId = null;
+    commander.cityId = city.id;
+    return { ok: true };
   }
 
   if (command.type === 'build') {

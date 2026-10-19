@@ -11,6 +11,11 @@ import { levelConfig, tickEconomy } from './economy.js';
 import { techEffects, availableTechs } from './tech.js';
 import { buildingEffects } from './buildings.js';
 import {
+  commanderAtCity,
+  commanderEffects,
+  grantCommanderXp,
+} from './commanders.js';
+import {
   isBlocked,
   isFriendly,
 } from './diplomacy.js';
@@ -167,6 +172,22 @@ function unitRecruitCost(balance, unitType) {
     population: config.costPopulation * config.batch,
     batch: config.batch,
   };
+}
+
+/**
+ * @param {any} state
+ * @param {any} balance
+ * @param {number} playerId
+ * @param {number | null} commanderId
+ * @param {number} xp
+ */
+function awardCommanderXp(state, balance, playerId, commanderId, xp) {
+  if (commanderId === null || commanderId === undefined) return;
+  const player = state.players[playerId];
+  const commander = (player?.commanders ?? []).find(
+    (entry) => entry.id === commanderId,
+  );
+  if (commander) grantCommanderXp(commander, balance, xp);
 }
 
 /**
@@ -547,6 +568,16 @@ export function step(state, balance, commands) {
       target.owner === null ? null : state.players[target.owner];
     const defenderTech = defender ? techEffects(defender, balance) : {};
     const defenderBuildings = buildingEffects(balance, target);
+    const previousOwner = target.owner;
+    const defenderPlayer =
+      previousOwner === null ? null : state.players[previousOwner];
+    const defenderCommander = defenderPlayer
+      ? commanderAtCity(defenderPlayer, target.id)
+      : null;
+    const defenderCommanderBonus = commanderEffects(
+      defenderCommander,
+      balance,
+    );
     const betrayalPenalty =
       attacker.betrayalUntil > state.tick
         ? balance.diplomacy?.betrayPenalty ?? 0.1
@@ -557,13 +588,17 @@ export function step(state, balance, commands) {
       balance,
       () => nextStateRandom(state),
       {
-        attackerAttack: Math.max(0, attackerTech.attack - betrayalPenalty),
-        defenderDefense: (defenderTech.defense ?? 0) + defenderBuildings.defense,
+        attackerAttack:
+          Math.max(0, attackerTech.attack - betrayalPenalty) +
+          (army.commanderAttack ?? 0),
+        defenderDefense:
+          (defenderTech.defense ?? 0) +
+          defenderBuildings.defense +
+          defenderCommanderBonus.defense,
         siegeBonus: attackerTech.siege,
         stance: balance.stances?.[army.stance ?? 'none'],
       },
     );
-    const previousOwner = target.owner;
     const humanInvolved =
       state.multiplayer || army.owner === 0 || previousOwner === 0;
 
@@ -582,6 +617,24 @@ export function step(state, balance, commands) {
       if (previousOwner !== null) {
         state.players[previousOwner].kills += battle.attackerLoss;
       }
+      if (defenderCommander) defenderCommander.cityId = null;
+      awardCommanderXp(
+        state,
+        balance,
+        army.owner,
+        army.commanderId,
+        (balance.commanders?.xpPerBattle ?? 8) +
+          (balance.commanders?.xpPerCapture ?? 20),
+      );
+      if (previousOwner !== null) {
+        awardCommanderXp(
+          state,
+          balance,
+          previousOwner,
+          defenderCommander?.id ?? null,
+          balance.commanders?.xpPerBattle ?? 8,
+        );
+      }
       if (humanInvolved) {
         state.events.push({
           type: 'captured',
@@ -597,6 +650,22 @@ export function step(state, balance, commands) {
       attacker.kills += battle.defenderLoss;
       if (target.owner !== null) {
         state.players[target.owner].kills += battle.attackerLoss;
+      }
+      awardCommanderXp(
+        state,
+        balance,
+        army.owner,
+        army.commanderId,
+        balance.commanders?.xpPerBattle ?? 8,
+      );
+      if (previousOwner !== null) {
+        awardCommanderXp(
+          state,
+          balance,
+          previousOwner,
+          defenderCommander?.id ?? null,
+          balance.commanders?.xpPerBattle ?? 8,
+        );
       }
       if (humanInvolved) {
         state.events.push({
