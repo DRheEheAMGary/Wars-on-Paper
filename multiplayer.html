@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Wars on Paper — 多人房间大厅" />
+    <meta name="color-scheme" content="light" />
+    <title>多人乱斗 · Wars on Paper</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff'/%3E%3Cpath d='M18 74 L42 24 L54 56 L82 30 L72 78 Z' fill='%23e0492f'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/client/styles/main.css" />
+    <link rel="stylesheet" href="/src/client/styles/setup.css" />
+    <link rel="stylesheet" href="/src/client/styles/multiplayer.css" />
+  </head>
+  <body>
+    <main class="screen setup-screen">
+      <div class="column lobby-column">
+        <a class="setup-back" href="/">← 返回主菜单</a>
+        <p class="setup-kicker">多人乱斗</p>
+        <h1 class="setup-title">房间大厅</h1>
+        <p class="tagline">创建房间或输入房间码加入，最多 32 人同图实时对战。</p>
+
+        <div class="setup-row lobby-name-row">
+          <label for="lobby-name">昵称</label>
+          <div class="setup-control">
+            <input id="lobby-name" maxlength="16" autocomplete="nickname" />
+          </div>
+        </div>
+
+        <section id="lobby-main">
+          <div class="lobby-grid">
+            <form id="create-room-form" class="lobby-card">
+              <h2>创建房间</h2>
+              <label>
+                <span>地图城市数</span>
+                <select id="create-cities"></select>
+              </label>
+              <label>
+                <span>对局时长</span>
+                <select id="create-minutes"></select>
+              </label>
+              <label>
+                <span>人数上限</span>
+                <select id="create-max-players"></select>
+              </label>
+              <button type="submit">创建房间</button>
+            </form>
+
+            <form id="join-room-form" class="lobby-card">
+              <h2>加入房间</h2>
+              <label>
+                <span>房间码</span>
+                <input
+                  id="join-code"
+                  maxlength="5"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  placeholder="例如 A7K2M"
+                />
+              </label>
+              <button type="submit">加入房间</button>
+            </form>
+          </div>
+
+          <section class="lobby-list">
+            <div class="lobby-list-head">
+              <h2>房间列表</h2>
+              <button id="refresh-rooms" class="setup-inline-button" type="button">
+                刷新
+              </button>
+            </div>
+            <div id="room-list" class="room-list"></div>
+          </section>
+        </section>
+
+        <section id="lobby-room" class="lobby-room hidden">
+          <div class="lobby-room-head">
+            <div>
+              <p class="setup-kicker">房间码</p>
+              <p id="room-code-display" class="room-code"></p>
+            </div>
+            <div class="lobby-room-meta" id="room-summary"></div>
+          </div>
+          <ul id="room-members" class="room-members"></ul>
+          <div class="lobby-actions">
+            <button id="start-room" class="setup-start hidden" type="button">
+              开始对局
+            </button>
+            <button id="leave-room" class="setup-inline-button" type="button">
+              离开房间
+            </button>
+          </div>
+        </section>
+
+        <p id="lobby-status" class="lobby-status" role="status"></p>
+      </div>
+    </main>
+
+    <script type="module" src="/src/client/multiplayer.js"></script>
+  </body>
+</html>

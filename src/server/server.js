@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_PORT } from '../shared/constants.js';
 import { serveStatic } from './static-server.js';
+import { MultiplayerServer } from './multiplayer.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
@@ -18,7 +19,10 @@ const server = createServer((req, res) => {
   void serveStatic(ROOT, req, res);
 });
 
-// TODO(M4): attach the WebSocket server here for multiplayer rooms.
+const multiplayer = new MultiplayerServer({
+  log: (message) => console.log(message),
+});
+multiplayer.attach(server);
 
 server.on('error', (error) => {
   if (/** @type {NodeJS.ErrnoException} */ (error).code === 'EADDRINUSE') {
@@ -34,5 +38,6 @@ server.listen(PORT, HOST, () => {
 });
 
 process.on('SIGINT', () => {
+  multiplayer.close();
   server.close(() => process.exit(0));
 });

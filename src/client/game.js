@@ -45,6 +45,8 @@ const params = new URLSearchParams(window.location.search);
 const requestedCities = Number(params.get('cities'));
 const cityCount = CITY_COUNTS.has(requestedCities) ? requestedCities : 160;
 const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000);
+const roomCode = params.get('room') ?? '';
+const isMultiplayer = Boolean(roomCode);
 
 const balance = await fetch('/data/balance.json', { cache: 'no-store' }).then(
   (response) => response.json(),
@@ -98,45 +100,144 @@ let drawQueued = false;
 let panelCityId = -1;
 /** @type {any} */
 let panelRefs = null;
+let myPlayerId = 0;
+/** @type {WebSocket | null} */
+let ws = null;
+/** @type {Worker | null} */
+let worker = null;
+let reconnectTimer = 0;
 
-const worker = new Worker('/src/client/game-worker.js', { type: 'module' });
-worker.onerror = (event) => {
-  showToast(`模拟器启动失败：${event.message || '未知错误'}`);
-};
-worker.postMessage({
-  type: 'init',
-  config: {
-    seed,
-    cityCount,
-    aiCount,
-    matchSeconds,
-    aiProfile: difficulty,
-  },
-  balance,
-});
-
-worker.onmessage = (event) => {
-  const message = event.data;
-
-  if (message.type === 'init') {
-    map = message.map;
-    snapshot = message.snapshot;
-    camera = new Camera(map.width, map.height);
-    resizeCanvas();
-    updateHud();
-    requestDraw();
+/** @param {any} message */
+function send(message) {
+  if (isMultiplayer) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
     return;
   }
+  worker?.postMessage(message);
+}
 
-  if (message.type === 'snapshot') {
-    snapshot = message.snapshot;
-    updateHud();
-    handleEvents(snapshot.events ?? []);
-    if (selectedId >= 0) renderPanel();
-    if (snapshot.phase !== 'playing') showResult();
-    requestDraw();
+function applySnapshot(nextSnapshot) {
+  snapshot = nextSnapshot;
+  updateHud();
+  handleEvents(snapshot.events ?? []);
+  if (selectedId >= 0) renderPanel();
+  if (snapshot.phase !== 'playing') showResult();
+  requestDraw();
+}
+
+/** @param {any} message */
+function handleServerMessage(message) {
+  if (message.type === 'welcome') {
+    sessionStorage.setItem('wop-token', message.token);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'join', code: roomCode }));
+    }
+    return;
   }
-};
+  if (message.type === 'started') {
+    map = message.map;
+    myPlayerId = message.playerId ?? -1;
+    camera = new Camera(map.width, map.height);
+    resizeCanvas();
+    applySnapshot(message.snapshot);
+    return;
+  }
+  if (message.type === 'snapshot') {
+    if (!map) return;
+    applySnapshot(message.snapshot);
+    return;
+  }
+  if (message.type === 'error') {
+    showToast(message.message ?? '连接出错');
+    return;
+  }
+  if (message.type === 'left' || message.type === 'room-closed') {
+    showToast('已离开房间');
+    window.setTimeout(() => {
+      window.location.href = '/multiplayer.html';
+    }, 1200);
+  }
+}
+
+function leaveMultiplayer(nextUrl) {
+  if (!isMultiplayer) {
+    window.location.href = nextUrl;
+    return;
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'leave' }));
+  }
+  window.setTimeout(() => {
+    window.location.href = nextUrl;
+  }, 150);
+}
+
+function connectMultiplayer() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+  ws.addEventListener('open', () => {
+    ws?.send(
+      JSON.stringify({
+        type: 'hello',
+        token: sessionStorage.getItem('wop-token') ?? '',
+        name: localStorage.getItem('wop-name') ?? '指挥官',
+      }),
+    );
+    showToast(snapshot ? '已重新连接' : '已连接房间，等待开始…');
+  });
+  ws.addEventListener('message', (event) => {
+    try {
+      handleServerMessage(JSON.parse(event.data));
+    } catch {
+      // ignore malformed frames
+    }
+  });
+  ws.addEventListener('close', () => {
+    if (snapshot?.phase === 'ended') return;
+    showToast('连接断开，正在重连…');
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = window.setTimeout(connectMultiplayer, 1500);
+  });
+  ws.addEventListener('error', () => {});
+}
+
+if (isMultiplayer) {
+  pauseButton.style.display = 'none';
+  speedButton.style.display = 'none';
+  mustElement('button-menu').textContent = '退出';
+  mustElement('button-restart').textContent = '返回大厅';
+  mustElement('button-result-settings').style.display = 'none';
+  connectMultiplayer();
+} else {
+  worker = new Worker('/src/client/game-worker.js', { type: 'module' });
+  worker.onerror = (event) => {
+    showToast(`模拟器启动失败：${event.message || '未知错误'}`);
+  };
+  worker.onmessage = (event) => {
+    const message = event.data;
+    if (message.type === 'init') {
+      map = message.map;
+      snapshot = message.snapshot;
+      camera = new Camera(map.width, map.height);
+      resizeCanvas();
+      updateHud();
+      requestDraw();
+      return;
+    }
+    if (message.type === 'snapshot') applySnapshot(message.snapshot);
+  };
+  send({
+    type: 'init',
+    config: {
+      seed,
+      cityCount,
+      aiCount,
+      matchSeconds,
+      aiProfile: difficulty,
+    },
+    balance,
+  });
+}
 
 /** @param {string} tag @param {string} [className] @param {string} [text] */
 function createElement(tag, className, text) {
@@ -155,7 +256,10 @@ function hidePanel() {
 
 function updateHud() {
   if (!snapshot) return;
-  const player = snapshot.players[0];
+  const player =
+    snapshot.players[myPlayerId] ??
+    snapshot.players[0] ??
+    { gold: 0, food: 0, cityCount: 0, score: 0 };
   statGold.textContent = String(Math.floor(player.gold));
   statFood.textContent = String(Math.floor(player.food));
   statCities.textContent = String(player.cityCount);
@@ -230,7 +334,7 @@ function renderPanel() {
     return;
   }
   const cityState = snapshot.cities[selectedId];
-  const owned = cityState.owner === 0;
+  const owned = cityState.owner === myPlayerId;
   // Rebuild only when the selected city or its ownership changes; snapshots
   // otherwise update values in place so clicks are never swallowed by a rebuild.
   if (!panelRefs || panelCityId !== selectedId || panelRefs.owned !== owned) {
@@ -243,7 +347,7 @@ function renderPanel() {
 function buildPanel() {
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
-  const owned = cityState.owner === 0;
+  const owned = cityState.owner === myPlayerId;
   panelCityId = selectedId;
   panelRefs = { cityId: selectedId, owned, research: new Map(), rows: new Map() };
 
@@ -260,7 +364,7 @@ function buildPanel() {
 
     panelRefs.recruit = createElement('button', '');
     panelRefs.recruit.addEventListener('click', () => {
-      worker.postMessage({
+      send({
         type: 'command',
         command: { type: 'recruit', cityId: selectedId },
       });
@@ -268,7 +372,7 @@ function buildPanel() {
 
     panelRefs.upgrade = createElement('button', '');
     panelRefs.upgrade.addEventListener('click', () => {
-      worker.postMessage({
+      send({
         type: 'command',
         command: { type: 'upgrade', cityId: selectedId },
       });
@@ -285,7 +389,7 @@ function buildPanel() {
     for (const tech of balance.research ?? []) {
       const button = createElement('button', '');
       button.addEventListener('click', () => {
-        worker.postMessage({
+        send({
           type: 'command',
           command: { type: 'research', techId: tech.id },
         });
@@ -336,7 +440,7 @@ function updatePanel() {
   if (!panelRefs || !snapshot) return;
   const cityState = snapshot.cities[panelCityId];
   if (!cityState) return;
-  const player = snapshot.players[0];
+  const player = snapshot.players[myPlayerId] ?? snapshot.players[0] ?? {};
   const config =
     balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
 
@@ -394,19 +498,37 @@ function updatePanel() {
 
 function showResult() {
   if (!snapshot.result) return;
-  const outcome = snapshot.result.outcome;
-  resultTitle.textContent =
-    outcome === 'won' ? '胜利' : outcome === 'lost' ? '战败' : '时间到';
-  resultDetail.textContent =
-    `分数 ${snapshot.result.score} · 城市 ${snapshot.result.cities} · ` +
-    `歼敌 ${Math.round(snapshot.result.kills)}` +
-    (snapshot.result.rank ? ` · 第 ${snapshot.result.rank} 名` : '');
+  const result = snapshot.result;
+  const ranking = result.ranking ?? [];
+
+  if (isMultiplayer) {
+    const myEntry = ranking.find((entry) => entry.id === myPlayerId);
+    const myRank = myEntry ? ranking.indexOf(myEntry) + 1 : null;
+    if (result.outcome === 'victory') {
+      resultTitle.textContent =
+        result.winner === myPlayerId ? '胜利' : result.winner === null ? '对局结束' : '结束';
+    } else {
+      resultTitle.textContent = '时间到';
+    }
+    resultDetail.textContent = myEntry
+      ? `城市 ${myEntry.cityCount} · 分数 ${myEntry.score} · 歼敌 ${Math.round(myEntry.kills)}` +
+        (myRank ? ` · 第 ${myRank} 名` : '')
+      : '观战中';
+  } else {
+    const outcome = result.outcome;
+    resultTitle.textContent =
+      outcome === 'won' ? '胜利' : outcome === 'lost' ? '战败' : '时间到';
+    resultDetail.textContent =
+      `分数 ${result.score} · 城市 ${result.cities} · ` +
+      `歼敌 ${Math.round(result.kills)}` +
+      (result.rank ? ` · 第 ${result.rank} 名` : '');
+  }
 
   resultRanking.replaceChildren();
-  (snapshot.result.ranking ?? []).forEach((entry, index) => {
+  ranking.forEach((entry, index) => {
     const row = createElement(
       'div',
-      entry.id === 0 ? 'result-row me' : 'result-row',
+      entry.id === (isMultiplayer ? myPlayerId : 0) ? 'result-row me' : 'result-row',
     );
     const dot = createElement('i', 'standing-dot');
     dot.style.background = entry.color;
@@ -481,7 +603,7 @@ canvas.addEventListener('pointerdown', (event) => {
   if (
     selectedId >= 0 &&
     id === selectedId &&
-    snapshot.cities[selectedId]?.owner === 0
+    snapshot.cities[selectedId]?.owner === myPlayerId
   ) {
     dragMode = 'dispatch';
     dragging = false;
@@ -510,7 +632,7 @@ canvas.addEventListener('pointermove', (event) => {
     dispatchOdds = null;
     if (dispatchTarget >= 0 && dispatchAmount > 0) {
       const targetState = snapshot.cities[dispatchTarget];
-      if (targetState.owner !== 0) {
+      if (targetState.owner !== myPlayerId) {
         dispatchOdds = Math.round(
           estimateBattle(
             dispatchAmount,
@@ -557,13 +679,13 @@ function resetDrag() {
 /** @param {number} targetId */
 function dispatchTo(targetId) {
   const current = snapshot.cities[selectedId];
-  if (!current || current.owner !== 0) return;
+  if (!current || current.owner !== myPlayerId) return;
   if (current.garrison <= 0) {
     showToast('该城没有可派出的部队');
     return;
   }
   const source = map.cities[selectedId];
-  const isOwn = snapshot.cities[targetId].owner === 0;
+  const isOwn = snapshot.cities[targetId].owner === myPlayerId;
   if (!isOwn) {
     const landRoute = source.neighbors.includes(targetId);
     const seaRoute = (source.seaNeighbors ?? []).includes(targetId);
@@ -577,7 +699,7 @@ function dispatchTo(targetId) {
     1,
     Math.min(sliderValue || Math.ceil(current.garrison / 2), current.garrison),
   );
-  worker.postMessage({
+  send({
     type: 'command',
     command: { type: 'deploy', fromCity: selectedId, toCity: targetId, soldiers },
   });
@@ -647,10 +769,11 @@ canvas.addEventListener('pointerleave', () => {
 window.addEventListener('resize', resizeCanvas);
 
 function setPaused(next) {
+  if (isMultiplayer) return;
   if (!snapshot || snapshot.phase !== 'playing') return;
   paused = Boolean(next);
   pauseButton.textContent = paused ? '继续' : '暂停';
-  worker.postMessage({ type: paused ? 'pause' : 'resume' });
+  send({ type: paused ? 'pause' : 'resume' });
   pauseMenu.classList.toggle('hidden', !paused);
   if (paused) {
     pauseDetail.textContent =
@@ -668,10 +791,16 @@ pauseButton.addEventListener('click', () => setPaused(!paused));
 speedButton.addEventListener('click', () => {
   speed = speed === 1 ? 2 : 1;
   speedButton.textContent = `${speed}×`;
-  worker.postMessage({ type: 'speed', speed });
+  send({ type: 'speed', speed });
 });
 
-mustElement('button-menu').addEventListener('click', () => setPaused(true));
+mustElement('button-menu').addEventListener('click', () => {
+  if (isMultiplayer) {
+    leaveMultiplayer('/multiplayer.html');
+    return;
+  }
+  setPaused(true);
+});
 mustElement('button-resume').addEventListener('click', () => setPaused(false));
 mustElement('button-restart-same').addEventListener('click', () => {
   window.location.href = `/game.html?${startQuery.toString()}`;
@@ -682,16 +811,22 @@ mustElement('button-pause-home').addEventListener('click', () => {
 });
 
 mustElement('button-home').addEventListener('click', () => {
-  window.location.href = '/';
+  if (isMultiplayer) leaveMultiplayer('/multiplayer.html');
+  else window.location.href = '/';
 });
 mustElement('button-result-settings').addEventListener('click', goSetup);
 
 mustElement('button-restart').addEventListener('click', () => {
+  if (isMultiplayer) {
+    leaveMultiplayer('/multiplayer.html');
+    return;
+  }
   startQuery.set('seed', String(Math.floor(Math.random() * 1_000_000)));
   window.location.href = `/game.html?${startQuery.toString()}`;
 });
 
 window.addEventListener('keydown', (event) => {
+  if (isMultiplayer) return;
   if (event.key === 'Escape') setPaused(!paused);
 });
 
@@ -715,6 +850,8 @@ window.__warsOnPaper = {
     requestDraw();
   },
   command: (/** @type {any} */ command) => {
-    worker.postMessage({ type: 'command', command });
+    send({ type: 'command', command });
   },
+  isMultiplayer: () => isMultiplayer,
+  playerId: () => myPlayerId,
 };

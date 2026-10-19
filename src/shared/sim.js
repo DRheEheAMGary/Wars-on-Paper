@@ -54,6 +54,31 @@ function checkEnd(state, balance) {
   const totalCities = state.cities.length;
   const matchTicks = Math.round(((state.matchSeconds ?? balance.matchSeconds) * 1000) / balance.tickMs);
 
+  if (state.multiplayer) {
+    const winner = state.players.find((/** @type {any} */ player) => player.cityCount >= totalCities);
+    if (winner) {
+      state.phase = 'ended';
+      state.result = {
+        outcome: 'victory',
+        winner: winner.id,
+        score: winner.score,
+        cities: winner.cityCount,
+        kills: winner.kills,
+        ranking: ranking(state),
+      };
+      return;
+    }
+    if (state.tick >= matchTicks) {
+      state.phase = 'ended';
+      state.result = {
+        outcome: 'ended',
+        winner: null,
+        ranking: ranking(state),
+      };
+    }
+    return;
+  }
+
   if (human.cityCount === 0) {
     state.phase = 'lost';
     state.result = {
@@ -237,7 +262,7 @@ export function step(state, balance, commands) {
 
     if (target.owner === army.owner) {
       target.garrison += army.soldiers;
-      if (army.owner === 0) {
+      if (state.multiplayer || army.owner === 0) {
         state.events.push({ type: 'reinforce', cityId: target.id, soldiers: army.soldiers });
       }
       continue;
@@ -253,7 +278,7 @@ export function step(state, balance, commands) {
       attackerMultiplier,
     );
     const previousOwner = target.owner;
-    const humanInvolved = army.owner === 0 || previousOwner === 0;
+    const humanInvolved = state.multiplayer || army.owner === 0 || previousOwner === 0;
 
     if (battle.captured) {
       target.owner = army.owner;

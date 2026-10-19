@@ -27,7 +27,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     if (action === 'single') {
       window.location.href = '/setup.html';
     } else if (action === 'multi') {
-      showNotice('多人乱斗将在 M4 上线：16–32 人同图实时对战。先玩单人模式吧。');
+      window.location.href = '/multiplayer.html';
     } else if (action === 'help') {
       showNotice('目标：占领城市、扩张领土。单人游戏可设置种子、AI 数量、难度与时长；对局中单击选中、拖拽派兵，ESC 暂停。');
     }

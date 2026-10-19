@@ -1,0 +1,229 @@
+/* Multiplayer lobby — white, minimal, hairline layout. */
+
+.lobby-column {
+  width: min(720px, 100%);
+}
+
+.lobby-name-row {
+  margin-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.lobby-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.lobby-card h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lobby-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.lobby-card select,
+.lobby-card input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.lobby-card select:focus,
+.lobby-card input:focus {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.lobby-card button {
+  padding: 10px 14px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.lobby-card button:hover {
+  background: #2a2a2a;
+}
+
+.lobby-list {
+  margin-top: 40px;
+}
+
+.lobby-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.lobby-list-head h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.room-list {
+  display: grid;
+}
+
+.room-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+
+.room-row-code {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.room-row-meta {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.room-row button {
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.room-row button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.room-row button:disabled {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.room-list-empty {
+  padding: 18px 0;
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+}
+
+.lobby-room {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.lobby-room-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.room-code {
+  margin: 6px 0 0;
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+}
+
+.lobby-room-meta {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  text-align: right;
+  line-height: 1.8;
+}
+
+.room-members {
+  display: grid;
+  gap: 0;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.room-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.room-members .member-state {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+
+.lobby-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.lobby-actions .setup-start {
+  width: auto;
+  margin: 0;
+  padding: 10px 22px;
+}
+
+.lobby-status {
+  min-height: 1.4em;
+  margin: 24px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .lobby-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .room-row {
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+  }
+
+  .room-row-meta {
+    grid-column: 1 / -1;
+  }
+}

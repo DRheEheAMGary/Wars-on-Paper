@@ -13,6 +13,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_PORT } from '../shared/constants.js';
 import { resolveSafePath, sendText, serveStatic } from './static-server.js';
+import { MultiplayerServer } from './multiplayer.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
@@ -56,6 +57,10 @@ function broadcastReload() {
     client.write('data: reload\n\n');
   }
 }
+
+const multiplayer = new MultiplayerServer({
+  log: (message) => console.log(`  ${message}`),
+});
 
 const server = createServer(async (req, res) => {
   const pathname = (req.url ?? '/').split('?')[0];
@@ -126,14 +131,18 @@ server.on('error', (error) => {
   throw error;
 });
 
+multiplayer.attach(server);
+
 server.listen(PORT, HOST, () => {
   console.log('');
   console.log('  Wars on Paper — dev server');
   console.log(`  local:  http://localhost:${PORT}`);
+  console.log(`  multiplayer: ws://localhost:${PORT}/ws`);
   console.log('  live reload: on (save a file to refresh the browser)');
   console.log('');
 });
 
 process.on('SIGINT', () => {
+  multiplayer.close();
   server.close(() => process.exit(0));
 });

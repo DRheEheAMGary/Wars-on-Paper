@@ -12,7 +12,7 @@ import { hashSeed } from './rng.js';
  * @param {Set<number>} used
  * @returns {{ capital: number, cities: number[], continent: number } | null}
  */
-function pickSpawnOnContinent(map, continent, count, used) {
+export function pickSpawnOnContinent(map, continent, count, used) {
   const candidates = map.cities.filter(
     (city) => city.continent === continent && !used.has(city.id),
   );
@@ -155,6 +155,7 @@ export function snapshot(state) {
   return {
     tick: state.tick,
     phase: state.phase,
+    multiplayer: Boolean(state.multiplayer),
     matchSeconds: state.matchSeconds,
     players: state.players.map((/** @type {any} */ player) => ({
       ...player,
