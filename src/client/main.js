@@ -37,17 +37,29 @@ document.querySelectorAll('[data-action]').forEach((button) => {
   });
 });
 
-fetch('/package.json', { cache: 'no-store' })
-  .then((response) => (response.ok ? response.json() : null))
-  .then((pkg) => {
-    if (pkg && typeof pkg.version === 'string') {
-      if (versionElement) versionElement.textContent = `v${pkg.version}`;
-      if (stageElement) {
-        const [major, minor] = pkg.version.split('.');
-        stageElement.textContent = `${major}.${minor} · 机制扩充`;
-      }
-    }
-  })
-  .catch(() => {
-    // Version display is cosmetic; ignore failures.
-  });
+async function loadVersionInfo() {
+  // /package.json is blocked by some production reverse-proxy rules, so prefer
+  // the health endpoint and only fall back to package.json.
+  try {
+    const response = await fetch('/healthz', { cache: 'no-store' });
+    if (response.ok) return await response.json();
+  } catch {
+    // fall through
+  }
+  try {
+    const response = await fetch('/package.json', { cache: 'no-store' });
+    if (response.ok) return await response.json();
+  } catch {
+    // version display is cosmetic
+  }
+  return null;
+}
+
+loadVersionInfo().then((info) => {
+  if (!info || typeof info.version !== 'string') return;
+  if (versionElement) versionElement.textContent = `v${info.version}`;
+  if (stageElement) {
+    const [major, minor] = info.version.split('.');
+    stageElement.textContent = `${major}.${minor} · 机制扩充`;
+  }
+});

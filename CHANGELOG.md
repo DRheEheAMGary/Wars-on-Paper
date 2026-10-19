@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-10-19
+
+### Fixed
+
+- 主页版本号在线上部署时为空：Nginx 等反代会拦截 `/package.json` 返回 404
+- 版本信息改为优先读取 `/healthz`（返回 version），失败时再回退 `/package.json`
+
 ## [1.11.3] - 2026-10-19
 
 ### Fixed
