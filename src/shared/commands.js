@@ -1,12 +1,12 @@
 // @ts-check
 /**
- * Player commands and their validation for the single-player core loop.
+ * Player commands and their validation (recruit, upgrade, research, deploy).
  */
 
 import { levelConfig } from './economy.js';
 
 /**
- * @typedef {{ ok: true } | { ok: false, error: string }} CommandResult
+ * @typedef {{ ok: true, sea?: boolean } | { ok: false, error: string }} CommandResult
  */
 
 /**
@@ -51,17 +51,42 @@ export function applyCommand(state, balance, command) {
     return { ok: true };
   }
 
+  if (command.type === 'research') {
+    const tech = (balance.research ?? []).find(
+      (/** @type {any} */ item) => item.id === command.techId,
+    );
+    if (!tech) return { ok: false, error: '未知科技' };
+    if (player.tech?.[tech.id]) return { ok: false, error: '已研发' };
+    if (player.gold < tech.costGold) return { ok: false, error: '金币不足' };
+    player.gold -= tech.costGold;
+    player.tech = player.tech ?? {};
+    player.tech[tech.id] = true;
+    return { ok: true };
+  }
+
   if (command.type === 'deploy') {
     const from = state.cities[command.fromCity];
     const to = state.cities[command.toCity];
     if (!from || from.owner !== player.id) return { ok: false, error: '出发城市不属于你' };
     if (!to) return { ok: false, error: '目标城市无效' };
-    if (!from.neighbors.includes(to.id)) return { ok: false, error: '只能攻击相邻城市' };
+
+    const landRoute = from.neighbors.includes(to.id);
+    const seaRoute = (from.seaNeighbors ?? []).includes(to.id);
+    if (!landRoute && !seaRoute) return { ok: false, error: '只能攻击相邻或可渡海的城市' };
+
     const soldiers = Math.min(
       Math.max(0, Math.floor(command.soldiers ?? from.garrison)),
       from.garrison,
     );
     if (soldiers <= 0) return { ok: false, error: '没有可派出的部队' };
+
+    const research = balance.researchEffects ?? {};
+    const logistics = player.tech?.logistics ? 1 - research.logistics : 1;
+    const baseTicks = Math.round((balance.soldierTravelSeconds * 1000) / balance.tickMs);
+    const travelTicks = Math.max(
+      1,
+      Math.round(baseTicks * (seaRoute ? balance.seaTravelMultiplier : 1) * logistics),
+    );
 
     from.garrison -= soldiers;
     state.armies.push({
@@ -71,11 +96,11 @@ export function applyCommand(state, balance, command) {
       toCity: to.id,
       soldiers,
       departTick: state.tick,
-      arriveTick:
-        state.tick + Math.round((balance.soldierTravelSeconds * 1000) / balance.tickMs),
+      arriveTick: state.tick + travelTicks,
+      sea: !landRoute,
     });
     state.nextArmyId += 1;
-    return { ok: true };
+    return { ok: true, sea: !landRoute };
   }
 
   return { ok: false, error: '未知指令' };

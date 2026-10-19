@@ -108,6 +108,23 @@ export function drawMatch(ctx, map, state, camera, options) {
     ctx.stroke();
   }
 
+  // Sea routes from the selected city (渡海目标).
+  if (selectedId >= 0 && map.cities[selectedId]) {
+    const selectedCity = map.cities[selectedId];
+    ctx.strokeStyle = 'rgba(63, 130, 170, 0.55)';
+    ctx.lineWidth = screen(1.3);
+    ctx.setLineDash([screen(5), screen(4)]);
+    for (const neighbourId of selectedCity.seaNeighbors ?? []) {
+      const target = map.cities[neighbourId];
+      if (!target) continue;
+      ctx.beginPath();
+      ctx.moveTo(selectedCity.center[0], selectedCity.center[1]);
+      ctx.lineTo(target.center[0], target.center[1]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
   // City crosses.
   ctx.strokeStyle = 'rgba(27, 27, 27, 0.55)';
   ctx.lineWidth = screen(1.1);

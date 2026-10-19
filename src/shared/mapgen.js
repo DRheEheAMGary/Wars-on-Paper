@@ -36,6 +36,7 @@ import {
  * @property {Point} center
  * @property {Point[]} polygon
  * @property {number[]} neighbors
+ * @property {number[]} seaNeighbors
  * @property {'plains' | 'forest' | 'hills' | 'mountain'} terrain
  * @property {number} continent
  * @property {number} area
@@ -47,6 +48,7 @@ import {
  * @property {number} width
  * @property {number} height
  * @property {MapCity[]} cities
+ * @property {{ a: number, b: number }[]} seaRoutes
  * @property {{
  *   cityCount: number,
  *   candidateCount: number,
@@ -56,6 +58,7 @@ import {
  *   continentCount: number,
  *   continentSizes: number[],
  *   islandCount: number,
+ *   seaRouteCount: number,
  *   lakeCount: number,
  * }} meta
  */
@@ -1002,6 +1005,55 @@ function pickIslandSpot(sites, owner, neighbors, borderCells) {
 }
 
 /**
+ * Connect continents with sea routes (渡海). Every pair of continents is linked
+ * through its closest two cities, so the whole map is reachable.
+ * @param {MapCity[]} cities
+ * @returns {{ a: number, b: number }[]}
+ */
+function attachSeaRoutes(cities) {
+  /** @type {Map<number, number[]>} */
+  const groups = new Map();
+  for (const city of cities) {
+    const list = groups.get(city.continent) ?? [];
+    list.push(city.id);
+    groups.set(city.continent, list);
+  }
+  const continents = [...groups.keys()].sort(
+    (a, b) => (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0) || a - b,
+  );
+  if (continents.length < 2) return [];
+
+  /** @type {number[][]} */
+  const seaNeighbors = cities.map(() => []);
+  /** @type {{ a: number, b: number }[]} */
+  const routes = [];
+
+  for (let i = 0; i < continents.length; i += 1) {
+    for (let j = i + 1; j < continents.length; j += 1) {
+      let best = null;
+      for (const a of groups.get(continents[i]) ?? []) {
+        for (const b of groups.get(continents[j]) ?? []) {
+          const distance = Math.hypot(
+            cities[a].center[0] - cities[b].center[0],
+            cities[a].center[1] - cities[b].center[1],
+          );
+          if (!best || distance < best.distance) best = { a, b, distance };
+        }
+      }
+      if (!best) continue;
+      routes.push({ a: best.a, b: best.b });
+      if (!seaNeighbors[best.a].includes(best.b)) seaNeighbors[best.a].push(best.b);
+      if (!seaNeighbors[best.b].includes(best.a)) seaNeighbors[best.b].push(best.a);
+    }
+  }
+
+  for (const city of cities) {
+    city.seaNeighbors = (seaNeighbors[city.id] ?? []).sort((a, b) => a - b);
+  }
+  return routes;
+}
+
+/**
  * Generate a complete, deterministic map.
  * @param {{ seed?: number | string, width?: number, height?: number, cityCount?: number }} [options]
  * @returns {GameMap}
@@ -1309,11 +1361,14 @@ export function generateMap(options = {}) {
       center,
       polygon,
       neighbors: landNeighbors,
+      seaNeighbors: [],
       terrain: terrains[index],
       continent: refreshed.continentOf.get(oldId) ?? 0,
       area,
     };
   });
+
+  const seaRoutes = attachSeaRoutes(cities);
 
   const worldArea = finalWidth * finalHeight;
   const continentSizes = [...continentSizesById.values()].sort((a, b) => b - a);
@@ -1323,6 +1378,7 @@ export function generateMap(options = {}) {
     width: finalWidth,
     height: finalHeight,
     cities,
+    seaRoutes,
     meta: {
       cityCount: cities.length,
       candidateCount,
@@ -1332,6 +1388,7 @@ export function generateMap(options = {}) {
       continentCount: continentSizes.length,
       continentSizes,
       islandCount,
+      seaRouteCount: seaRoutes.length,
       lakeCount,
     },
   };

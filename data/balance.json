@@ -1,19 +1,20 @@
 {
-  "version": 1,
+  "version": 2,
   "tickMs": 100,
-  "matchSeconds": 720,
-  "startGold": 300,
-  "startFood": 200,
+  "matchSeconds": 600,
+  "startGold": 280,
+  "startFood": 180,
   "startPopulation": 60,
-  "startSoldiers": 40,
-  "neutralGarrison": 30,
+  "startSoldiers": 60,
+  "neutralGarrison": 20,
   "spawnCities": 3,
   "recruitBatch": 10,
-  "soldierCostGold": 6,
-  "soldierCostPopulation": 2,
-  "soldierTravelSeconds": 8,
-  "soldierFoodUpkeepPerSecond": 0.005,
-  "populationGrowthPerSecond": 1.5,
+  "soldierCostGold": 4,
+  "soldierCostPopulation": 1,
+  "soldierTravelSeconds": 4,
+  "seaTravelMultiplier": 2.2,
+  "soldierFoodUpkeepPerSecond": 0.004,
+  "populationGrowthPerSecond": 1.8,
   "starvationLossPerSecond": 0.01,
   "captureLevelLoss": 1,
   "scorePerCity": 100,
@@ -21,9 +22,27 @@
   "soldierAttack": 10,
   "soldierDefense": 10,
   "combat": {
-    "casualtyFactor": 0.7,
-    "randomness": 0.1
+    "casualtyFactor": 0.35,
+    "randomness": 0.08,
+    "maxRounds": 60
   },
+  "ai": {
+    "count": 2,
+    "thinkTicks": 12,
+    "reserveGold": 80,
+    "attackOdds": 0.58
+  },
+  "research": [
+    { "id": "economy", "name": "税制", "description": "+20% 金币", "costGold": 180 },
+    { "id": "military", "name": "操练", "description": "+15% 攻击", "costGold": 220 },
+    { "id": "logistics", "name": "筑路", "description": "行军时间 -25%", "costGold": 200 }
+  ],
+  "researchEffects": {
+    "economy": 0.2,
+    "military": 0.15,
+    "logistics": 0.25
+  },
+  "playerColors": ["#d24a35", "#2f6f9f", "#c98a2e", "#4f8a5b"],
   "cityLevels": [
     {
       "level": 1,

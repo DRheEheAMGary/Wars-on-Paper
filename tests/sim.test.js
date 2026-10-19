@@ -122,13 +122,84 @@ test('resources never go negative', () => {
   }
 });
 
-test('match ends in victory when the home continent is fully owned', () => {
+test('match ends in victory after conquering every city', () => {
   const state = makeState();
-  for (const city of state.cities) {
-    if (city.continent === state.spawnContinent) city.owner = 0;
-  }
+  for (const city of state.cities) city.owner = 0;
   step(state, balance, []);
   assert.equal(state.phase, 'won');
   assert.equal(state.result.outcome, 'won');
   assert.ok(state.result.score > 0);
+});
+
+test('failed attacks wipe the attacker instead of retreating', () => {
+  const state = makeState();
+  const from = state.cities.find((candidate) => candidate.owner === 0);
+  assert.ok(from);
+  const toId = from.neighbors.find((neighbour) => state.cities[neighbour].owner === null);
+  assert.ok(toId !== undefined);
+  from.garrison = 8;
+  state.cities[toId].garrison = 200;
+
+  applyCommand(state, balance, { type: 'deploy', fromCity: from.id, toCity: toId });
+  let sawReturn = false;
+  for (let i = 0; i < 200; i += 1) {
+    step(state, balance, []);
+    if (state.armies.some((army) => army.fromCity === toId && army.toCity === from.id)) {
+      sawReturn = true;
+    }
+  }
+  assert.equal(sawReturn, false);
+  assert.equal(state.cities[toId].owner, null);
+  assert.ok(state.cities[toId].garrison < 200);
+});
+
+test('armies can cross the sea between continents', () => {
+  const state = makeState();
+  assert.ok(map.seaRoutes.length > 0);
+  const route = map.seaRoutes[0];
+  state.cities[route.a].owner = 0;
+  state.cities[route.a].garrison = 150;
+  state.cities[route.b].owner = null;
+  state.cities[route.b].garrison = 0;
+
+  const result = applyCommand(state, balance, {
+    type: 'deploy',
+    fromCity: route.a,
+    toCity: route.b,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(state.armies[0].sea, true);
+  assert.ok(state.armies[0].arriveTick > balance.soldierTravelSeconds * 10);
+
+  for (let i = 0; i < 300 && state.cities[route.b].owner === null; i += 1) {
+    step(state, balance, []);
+  }
+  assert.equal(state.cities[route.b].owner, 0);
+});
+
+test('research costs gold and unlocks an effect', () => {
+  const state = makeState();
+  state.players[0].gold = 1000;
+  const result = applyCommand(state, balance, {
+    type: 'research',
+    techId: 'economy',
+  });
+  assert.equal(result.ok, true);
+  assert.equal(state.players[0].tech.economy, true);
+  assert.ok(state.players[0].gold < 1000);
+  assert.equal(
+    applyCommand(state, balance, { type: 'research', techId: 'economy' }).ok,
+    false,
+  );
+});
+
+test('AI opponents take actions over time', () => {
+  const aiState = createMatch(map, balance, { seed: 7, aiCount: 2 });
+  assert.ok(aiState.players.length > 1);
+  const initial = aiState.players.slice(1).map((player) => player.cityCount);
+  for (let i = 0; i < 400; i += 1) step(aiState, balance, []);
+  const changed = aiState.players
+    .slice(1)
+    .some((player, index) => player.cityCount !== initial[index] || player.kills > 0);
+  assert.equal(changed, true);
 });

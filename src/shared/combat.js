@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * Battle resolution for the single-player core loop.
+ * Decisive battle resolution: the arriving army fights until one side is
+ * eliminated. A failed attack never retreats — the attacker is destroyed.
  */
 
 import { levelConfig } from './economy.js';
@@ -15,50 +16,86 @@ import { levelConfig } from './economy.js';
  */
 
 /**
- * One-off battle: attacker arrives at a city and fights the garrison.
  * @param {number} attackerSoldiers
  * @param {any} city
  * @param {any} balance
  * @param {() => number} random
+ * @param {number} [attackerMultiplier]
  * @returns {BattleResult}
  */
-export function resolveBattle(attackerSoldiers, city, balance, random) {
+export function resolveBattle(attackerSoldiers, city, balance, random, attackerMultiplier = 1) {
   const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
-  const config = levelConfig(balance, city.level);
-  const wall = 1 + config.wall;
-  const noiseA = 1 + (random() * 2 - 1) * balance.combat.randomness;
-  const noiseD = 1 + (random() * 2 - 1) * balance.combat.randomness;
+  const wall = 1 + levelConfig(balance, city.level).wall;
+  const attackStrength = balance.soldierAttack * terrain.attack * attackerMultiplier;
+  const defenseStrength = balance.soldierDefense * terrain.defense * wall;
 
-  const attackPower = attackerSoldiers * balance.soldierAttack * terrain.attack * noiseA;
-  const defendPower =
-    city.garrison * balance.soldierDefense * terrain.defense * wall * noiseD;
-
-  if (city.garrison <= 0) {
+  const startAttack = attackerSoldiers;
+  const startDefense = city.garrison;
+  if (startDefense <= 0) {
     return {
       attackerLoss: 0,
       defenderLoss: 0,
-      attackerRemaining: attackerSoldiers,
+      attackerRemaining: startAttack,
       defenderRemaining: 0,
       captured: true,
     };
   }
 
-  const share = attackPower / (attackPower + defendPower);
+  let attacker = startAttack;
+  let defender = startDefense;
+  let rounds = 0;
   const factor = balance.combat.casualtyFactor;
-  const attackerLoss = Math.min(
-    attackerSoldiers,
-    Math.round(attackerSoldiers * (1 - share) * factor),
-  );
-  const defenderLoss = Math.min(
-    city.garrison,
-    Math.round(city.garrison * share * factor),
-  );
+
+  while (
+    attacker > 0 &&
+    defender > 0 &&
+    rounds < balance.combat.maxRounds
+  ) {
+    rounds += 1;
+    const noiseA = 1 + (random() * 2 - 1) * balance.combat.randomness;
+    const noiseD = 1 + (random() * 2 - 1) * balance.combat.randomness;
+    const attackPower = attacker * attackStrength * noiseA;
+    const defensePower = defender * defenseStrength * noiseD;
+    const share = attackPower / (attackPower + defensePower);
+    const lossA = Math.min(
+      attacker,
+      Math.max(1, Math.round(attacker * (1 - share) * factor)),
+    );
+    const lossD = Math.min(
+      defender,
+      Math.max(1, Math.round(defender * share * factor)),
+    );
+    attacker -= lossA;
+    defender -= lossD;
+  }
+
+  if (attacker <= 0 && defender > 0) {
+    attacker = 0;
+  }
+  const captured = defender <= 0;
 
   return {
-    attackerLoss,
-    defenderLoss,
-    attackerRemaining: attackerSoldiers - attackerLoss,
-    defenderRemaining: city.garrison - defenderLoss,
-    captured: city.garrison - defenderLoss <= 0,
+    attackerLoss: startAttack - Math.max(0, attacker),
+    defenderLoss: startDefense - Math.max(0, defender),
+    attackerRemaining: captured ? Math.max(0, attacker) : 0,
+    defenderRemaining: captured ? 0 : Math.max(0, defender),
+    captured,
   };
+}
+
+/**
+ * Deterministic strength estimate for the UI (no randomness).
+ * @param {number} attackerSoldiers
+ * @param {any} city
+ * @param {any} balance
+ * @param {number} [attackerMultiplier]
+ * @returns {{ attack: number, defense: number, odds: number }}
+ */
+export function estimateBattle(attackerSoldiers, city, balance, attackerMultiplier = 1) {
+  const terrain = balance.terrain[city.terrain] ?? balance.terrain.plains;
+  const wall = 1 + levelConfig(balance, city.level).wall;
+  const attack =
+    attackerSoldiers * balance.soldierAttack * terrain.attack * attackerMultiplier;
+  const defense = city.garrison * balance.soldierDefense * terrain.defense * wall;
+  return { attack, defense, odds: attack / Math.max(1, attack + defense) };
 }

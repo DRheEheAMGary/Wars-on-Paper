@@ -243,3 +243,75 @@ body.game-page {
     width: auto;
   }
 }
+
+.standing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.standing-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.research-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.research-list button {
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.research-list button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.research-list button:disabled {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.neighbour-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.neighbour-actions button {
+  padding: 5px 8px;
+}
+
+.result-ranking {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 20px;
+  text-align: left;
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.result-row.me {
+  color: var(--ink);
+  font-weight: 600;
+}

@@ -6,6 +6,7 @@
 
 import { Camera } from './render/camera.js';
 import { drawMatch, cityAt } from './render/match.js';
+import { estimateBattle } from '../shared/combat.js';
 
 /** @param {string} id @returns {HTMLElement} */
 function mustElement(id) {
@@ -32,6 +33,8 @@ const statFood = mustElement('stat-food');
 const statCities = mustElement('stat-cities');
 const statScore = mustElement('stat-score');
 const statTimer = mustElement('stat-timer');
+const standingsElement = mustElement('standings');
+const resultRanking = mustElement('result-ranking');
 const pauseButton = mustElement('button-pause');
 const speedButton = mustElement('button-speed');
 
@@ -112,6 +115,16 @@ function updateHud() {
   const minutes = Math.floor(remaining / 60);
   const seconds = String(remaining % 60).padStart(2, '0');
   statTimer.textContent = `${minutes}:${seconds}`;
+
+  standingsElement.replaceChildren();
+  for (const player of snapshot.players) {
+    const chip = createElement('span', 'standing');
+    const dot = createElement('i', 'standing-dot');
+    dot.style.background = player.color;
+    const label = createElement('span', '', `${player.name} ${player.cityCount}`);
+    chip.append(dot, label);
+    standingsElement.append(chip);
+  }
 }
 
 /** @param {any[]} events */
@@ -163,7 +176,10 @@ function renderPanel() {
   }
   const city = map.cities[selectedId];
   const cityState = snapshot.cities[selectedId];
+  const player = snapshot.players[0];
   const owned = cityState.owner === 0;
+  const militaryMultiplier =
+    1 + (player.tech?.military ? balance.researchEffects.military : 0);
 
   panelElement.classList.remove('hidden');
   panelElement.replaceChildren();
@@ -180,7 +196,8 @@ function renderPanel() {
 
   if (owned) {
     const actions = createElement('div', 'panel-actions');
-    const config = balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
+    const config =
+      balance.cityLevels[Math.min(cityState.level, balance.cityLevels.length) - 1];
 
     const recruit = createElement(
       'button',
@@ -210,49 +227,115 @@ function renderPanel() {
       });
     });
     actions.append(upgrade);
-
     panelElement.append(actions);
 
     if (cityState.upgrading) {
-      const elapsedTick = snapshot.tick;
-      const remaining = Math.max(0, cityState.upgrading.endsTick - elapsedTick);
+      const remaining = Math.max(0, cityState.upgrading.endsTick - snapshot.tick);
       panelElement.append(
         createElement('p', 'panel-sub', `升级中… 剩余 ${(remaining / 10).toFixed(0)} 秒`),
       );
     }
+
+    panelElement.append(createElement('p', 'panel-label', '科技'));
+    const researchList = createElement('div', 'research-list');
+    for (const tech of balance.research ?? []) {
+      const researched = Boolean(player.tech?.[tech.id]);
+      const button = createElement(
+        'button',
+        '',
+        researched
+          ? `${tech.name} · 已研发`
+          : `${tech.name}（${tech.description}）· ${tech.costGold} 金`,
+      );
+      button.disabled = researched || player.gold < tech.costGold;
+      button.addEventListener('click', () => {
+        worker.postMessage({
+          type: 'command',
+          command: { type: 'research', techId: tech.id },
+        });
+      });
+      researchList.append(button);
+    }
+    panelElement.append(researchList);
   }
 
-  panelElement.append(createElement('p', 'panel-label', '相邻城市'));
+  panelElement.append(
+    createElement('p', 'panel-label', owned ? '可行动目标' : '相邻城市'),
+  );
 
   const list = createElement('div', 'neighbour-list');
-  for (const neighbourId of city.neighbors) {
+  const targets = [...city.neighbors, ...(city.seaNeighbors ?? [])];
+  for (const neighbourId of targets) {
     const neighbour = map.cities[neighbourId];
     const neighbourState = snapshot.cities[neighbourId];
-    const row = createElement('div', 'neighbour-row');
+    const sea = !city.neighbors.includes(neighbourId);
     const ownerText =
-      neighbourState.owner === 0 ? '你的城市' : neighbourState.owner === null ? '中立' : '敌方';
+      neighbourState.owner === 0
+        ? '你的城市'
+        : neighbourState.owner === null
+          ? '中立'
+          : '敌方';
+
+    const row = createElement('div', 'neighbour-row');
     row.append(
       createElement(
         'span',
         'neighbour-info',
-        `${neighbour.name} · ${ownerText} · 驻军 ${neighbourState.garrison}`,
+        `${neighbour.name}${sea ? ' · 渡海' : ''} · ${ownerText} · 守军 ${neighbourState.garrison}`,
       ),
     );
 
     if (owned) {
-      const button = createElement(
-        'button',
-        '',
-        neighbourState.owner === 0 ? '增援' : '派兵',
-      );
-      button.addEventListener('click', () => {
-        worker.postMessage({
-          type: 'command',
-          command: { type: 'deploy', fromCity: selectedId, toCity: neighbourId },
+      if (neighbourState.owner === 0) {
+        const button = createElement('button', '', '增援');
+        button.addEventListener('click', () => {
+          worker.postMessage({
+            type: 'command',
+            command: { type: 'deploy', fromCity: selectedId, toCity: neighbourId },
+          });
+          showToast(`增援 ${neighbour.name}`);
         });
-        showToast(`派兵前往 ${neighbour.name}`);
-      });
-      row.append(button);
+        row.append(button);
+      } else {
+        const targetInfo = {
+          level: neighbourState.level,
+          garrison: neighbourState.garrison,
+          terrain: neighbour.terrain,
+        };
+        const half = Math.max(1, Math.floor(cityState.garrison / 2));
+        const allOdds = Math.round(
+          estimateBattle(cityState.garrison, targetInfo, balance, militaryMultiplier)
+            .odds * 100,
+        );
+        const halfOdds = Math.round(
+          estimateBattle(half, targetInfo, balance, militaryMultiplier).odds * 100,
+        );
+        const actions = createElement('div', 'neighbour-actions');
+
+        const halfButton = createElement('button', '', `半 ${halfOdds}%`);
+        halfButton.addEventListener('click', () => {
+          worker.postMessage({
+            type: 'command',
+            command: {
+              type: 'deploy',
+              fromCity: selectedId,
+              toCity: neighbourId,
+              soldiers: half,
+            },
+          });
+          showToast(`派兵前往 ${neighbour.name}`);
+        });
+        const allButton = createElement('button', '', `全 ${allOdds}%`);
+        allButton.addEventListener('click', () => {
+          worker.postMessage({
+            type: 'command',
+            command: { type: 'deploy', fromCity: selectedId, toCity: neighbourId },
+          });
+          showToast(`派兵前往 ${neighbour.name}`);
+        });
+        actions.append(halfButton, allButton);
+        row.append(actions);
+      }
     }
 
     list.append(row);
@@ -267,7 +350,28 @@ function showResult() {
     outcome === 'won' ? '胜利' : outcome === 'lost' ? '战败' : '时间到';
   resultDetail.textContent =
     `分数 ${snapshot.result.score} · 城市 ${snapshot.result.cities} · ` +
-    `歼敌 ${Math.round(snapshot.result.kills)}`;
+    `歼敌 ${Math.round(snapshot.result.kills)}` +
+    (snapshot.result.rank ? ` · 第 ${snapshot.result.rank} 名` : '');
+
+  resultRanking.replaceChildren();
+  (snapshot.result.ranking ?? []).forEach((entry, index) => {
+    const row = createElement(
+      'div',
+      entry.id === 0 ? 'result-row me' : 'result-row',
+    );
+    const dot = createElement('i', 'standing-dot');
+    dot.style.background = entry.color;
+    row.append(
+      dot,
+      createElement(
+        'span',
+        '',
+        `${index + 1}. ${entry.name} · ${entry.cityCount} 城 · ${entry.score} 分`,
+      ),
+    );
+    resultRanking.append(row);
+  });
+
   resultElement.classList.remove('hidden');
 }
 

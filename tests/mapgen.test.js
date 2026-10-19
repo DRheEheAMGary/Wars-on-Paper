@@ -108,6 +108,43 @@ test('the map has several connected continents and no lakes', () => {
   }
 });
 
+test('sea routes connect every continent', () => {
+  assert.ok(MAP.meta.continentCount >= 2);
+  assert.ok(MAP.meta.seaRouteCount >= MAP.meta.continentCount - 1);
+
+  const groups = groupByContinent(MAP);
+  const continents = [...groups.keys()];
+  const cityContinent = new Map();
+  for (const [continent, cities] of groups) {
+    for (const city of cities) cityContinent.set(city.id, continent);
+  }
+
+  const reachable = new Set([continents[0]]);
+  const queue = [continents[0]];
+  while (queue.length > 0) {
+    const current = /** @type {number} */ (queue.pop());
+    for (const route of MAP.seaRoutes) {
+      const a = cityContinent.get(route.a);
+      const b = cityContinent.get(route.b);
+      const next = a === current ? b : b === current ? a : undefined;
+      if (next !== undefined && !reachable.has(next)) {
+        reachable.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  assert.equal(reachable.size, continents.length);
+
+  for (const city of MAP.cities) {
+    for (const neighbourId of city.seaNeighbors) {
+      assert.ok(
+        MAP.cities[neighbourId].seaNeighbors.includes(city.id),
+        'sea adjacency is not symmetric',
+      );
+    }
+  }
+});
+
 test('adjacency is symmetric and cities have neighbours', () => {
   for (const city of MAP.cities) {
     assert.ok(city.neighbors.length > 0, `${city.name} has no neighbours`);
