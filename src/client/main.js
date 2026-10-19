@@ -7,6 +7,7 @@
 import { APP_NAME } from '../shared/constants.js';
 
 const versionElement = document.getElementById('version');
+const stageElement = document.getElementById('stage');
 const noticeElement = document.getElementById('notice');
 
 document.title = `${APP_NAME} — 实时领土争夺`;
@@ -39,8 +40,12 @@ document.querySelectorAll('[data-action]').forEach((button) => {
 fetch('/package.json', { cache: 'no-store' })
   .then((response) => (response.ok ? response.json() : null))
   .then((pkg) => {
-    if (pkg && typeof pkg.version === 'string' && versionElement) {
-      versionElement.textContent = `v${pkg.version}`;
+    if (pkg && typeof pkg.version === 'string') {
+      if (versionElement) versionElement.textContent = `v${pkg.version}`;
+      if (stageElement) {
+        const [major, minor] = pkg.version.split('.');
+        stageElement.textContent = `${major}.${minor} · 机制扩充`;
+      }
     }
   })
   .catch(() => {
