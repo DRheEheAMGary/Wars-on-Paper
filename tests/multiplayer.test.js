@@ -87,6 +87,33 @@ test('multiplayer match ends when one player owns every city', () => {
   assert.equal(state.result.winner, 1);
 });
 
+test('rooms can be created in endless mode', () => {
+  assert.equal(normalizeRoomConfig({ mode: 'endless' }).mode, 'endless');
+  assert.equal(normalizeRoomConfig({ mode: 'timed' }).mode, 'timed');
+  const state = createMultiplayerMatch(
+    map,
+    balance,
+    [{ id: 0, name: 'A' }, { id: 1, name: 'B' }],
+    { mode: 'endless' },
+  );
+  assert.equal(state.mode, 'endless');
+  assert.ok(state.nextWaveTick > 0);
+});
+
+test('multiplayer endless ends when only one player has cities', () => {
+  const state = createMultiplayerMatch(
+    map,
+    balance,
+    [{ id: 0, name: 'A' }, { id: 1, name: 'B' }],
+    { mode: 'endless' },
+  );
+  for (const city of state.cities) if (city.owner === 1) city.owner = null;
+  step(state, balance, []);
+  assert.equal(state.phase, 'ended');
+  assert.equal(state.result.outcome, 'victory');
+  assert.equal(state.result.winner, 0);
+});
+
 test('room config falls back to defaults for invalid values', () => {
   assert.deepEqual(
     normalizeRoomConfig({ cityCount: 120, matchSeconds: 60, maxPlayers: 3 }),
@@ -94,7 +121,7 @@ test('room config falls back to defaults for invalid values', () => {
   );
   assert.deepEqual(
     normalizeRoomConfig({ cityCount: 240, matchSeconds: 900, maxPlayers: 16 }),
-    { cityCount: 240, matchSeconds: 900, maxPlayers: 16 },
+    { cityCount: 240, matchSeconds: 900, maxPlayers: 16, mode: 'timed' },
   );
 });
 

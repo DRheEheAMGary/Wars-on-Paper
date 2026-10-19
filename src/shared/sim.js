@@ -155,6 +155,21 @@ function checkEnd(state, balance) {
   );
 
   if (state.multiplayer) {
+    if (state.mode === 'endless') {
+      const alive = state.players.filter(
+        (/** @type {any} */ player) => player.cityCount > 0,
+      );
+      if (alive.length <= 1) {
+        state.phase = 'ended';
+        state.result = {
+          outcome: alive.length === 1 ? 'victory' : 'ended',
+          winner: alive[0]?.id ?? null,
+          wave: state.wave ?? 0,
+          ranking: ranking(state),
+        };
+      }
+      return;
+    }
     const winner = state.players.find(
       (/** @type {any} */ player) => player.cityCount >= totalCities,
     );

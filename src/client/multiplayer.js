@@ -23,6 +23,7 @@ const joinForm = /** @type {HTMLFormElement} */ (mustElement('join-room-form'));
 const createCities = /** @type {HTMLSelectElement} */ (mustElement('create-cities'));
 const createMinutes = /** @type {HTMLSelectElement} */ (mustElement('create-minutes'));
 const createMaxPlayers = /** @type {HTMLSelectElement} */ (mustElement('create-max-players'));
+const createMode = /** @type {HTMLSelectElement} */ (mustElement('create-mode'));
 const joinCode = /** @type {HTMLInputElement} */ (mustElement('join-code'));
 const roomListElement = mustElement('room-list');
 const lobbyMain = mustElement('lobby-main');
@@ -118,7 +119,8 @@ function renderRoomList(rooms) {
         'span',
         'room-row-meta',
         `${room.playerCount}/${room.maxPlayers} 人 · ${room.cityCount} 城 · ` +
-          `${room.matchSeconds / 60} 分钟 · ${PHASE_LABELS[room.phase] ?? room.phase}`,
+          `${room.mode === 'endless' ? '无尽模式' : `${room.matchSeconds / 60} 分钟`} · ` +
+          `${PHASE_LABELS[room.phase] ?? room.phase}`,
       ),
     );
     row.append(createElement('span', 'room-row-meta', `房主 ${room.host || '—'}`));
@@ -147,7 +149,8 @@ function renderRoom() {
   roomCodeDisplay.textContent = currentRoom.code;
   roomSummary.textContent =
     `${currentRoom.playerCount}/${currentRoom.maxPlayers} 人 · ` +
-    `${currentRoom.cityCount} 城 · ${currentRoom.matchSeconds / 60} 分钟 · ` +
+    `${currentRoom.cityCount} 城 · ` +
+    `${currentRoom.mode === 'endless' ? '无尽模式' : `${currentRoom.matchSeconds / 60} 分钟`} · ` +
     `${PHASE_LABELS[currentRoom.phase] ?? currentRoom.phase}`;
 
   roomMembers.replaceChildren();
@@ -280,6 +283,7 @@ createForm.addEventListener('submit', (event) => {
       cityCount: Number(createCities.value),
       matchSeconds: Number(createMinutes.value),
       maxPlayers: Number(createMaxPlayers.value),
+      mode: createMode.value,
     },
   });
 });

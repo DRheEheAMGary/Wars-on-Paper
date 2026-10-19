@@ -1037,9 +1037,14 @@ function showResult() {
     } else {
       resultTitle.textContent = '时间到';
     }
+    const waveInfo =
+      result.wave !== undefined && result.wave !== null
+        ? ` · 第 ${result.wave} 波`
+        : '';
     resultDetail.textContent = myEntry
       ? `城市 ${myEntry.cityCount} · 分数 ${myEntry.score} · 歼敌 ${Math.round(myEntry.kills)}` +
-        (myRank ? ` · 第 ${myRank} 名` : '')
+        (myRank ? ` · 第 ${myRank} 名` : '') +
+        waveInfo
       : '观战中';
   } else {
     const outcome = result.outcome;

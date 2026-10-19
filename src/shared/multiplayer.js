@@ -12,6 +12,7 @@ export const DEFAULT_ROOM_CONFIG = {
   cityCount: 240,
   matchSeconds: 600,
   maxPlayers: 32,
+  mode: 'timed',
 };
 export const CITY_COUNT_OPTIONS = [60, 100, 160, 240, 360];
 export const MATCH_LENGTH_OPTIONS = [300, 600, 900, 1200];
@@ -29,7 +30,7 @@ export function randomRoomCode() {
 
 /**
  * @param {any} input
- * @returns {{ cityCount: number, matchSeconds: number, maxPlayers: number }}
+ * @returns {{ cityCount: number, matchSeconds: number, maxPlayers: number, mode: string }}
  */
 export function normalizeRoomConfig(input = {}) {
   const cityCount = CITY_COUNT_OPTIONS.includes(Number(input.cityCount))
@@ -41,7 +42,8 @@ export function normalizeRoomConfig(input = {}) {
   const maxPlayers = MAX_PLAYERS_OPTIONS.includes(Number(input.maxPlayers))
     ? Number(input.maxPlayers)
     : DEFAULT_ROOM_CONFIG.maxPlayers;
-  return { cityCount, matchSeconds, maxPlayers };
+  const mode = input.mode === 'endless' ? 'endless' : 'timed';
+  return { cityCount, matchSeconds, maxPlayers, mode };
 }
 
 /**
@@ -163,7 +165,7 @@ function pickSpawnCluster(map, continent, count, used) {
  * @param {import('./mapgen.js').GameMap} map
  * @param {any} balance
  * @param {{ id: number, name: string, token?: string }[]} playerInfos
- * @param {{ seed?: number | string, matchSeconds?: number }} [options]
+ * @param {{ seed?: number | string, matchSeconds?: number, mode?: string }} [options]
  * @returns {any}
  */
 export function createMultiplayerMatch(map, balance, playerInfos, options = {}) {
@@ -263,9 +265,9 @@ export function createMultiplayerMatch(map, balance, playerInfos, options = {}) 
     tick: 0,
     phase: 'playing',
     multiplayer: true,
-    mode: 'timed',
+    mode: options.mode === 'endless' ? 'endless' : 'timed',
     wave: 0,
-    nextWaveTick: 0,
+    nextWaveTick: Math.round(((balance.endless?.firstWaveSeconds ?? 45) * 1000) / balance.tickMs),
     matchSeconds: options.matchSeconds ?? balance.matchSeconds,
     spawnContinent: players[0]?.startContinent ?? 0,
     capital: spawns[0]?.capital ?? 0,

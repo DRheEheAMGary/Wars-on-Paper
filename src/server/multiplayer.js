@@ -371,6 +371,7 @@ export class MultiplayerServer {
     });
     const state = createMultiplayerMatch(map, this.balance, infos, {
       matchSeconds: room.config.matchSeconds,
+      mode: room.config.mode,
     });
 
     room.map = map;
@@ -559,6 +560,7 @@ export class MultiplayerServer {
       maxPlayers: room.config.maxPlayers,
       cityCount: room.config.cityCount,
       matchSeconds: room.config.matchSeconds,
+      mode: room.config.mode,
     };
   }
 
