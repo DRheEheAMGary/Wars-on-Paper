@@ -14,19 +14,33 @@
     <link rel="stylesheet" href="/src/client/styles/game.css" />
   </head>
   <body class="game-page">
+    <svg class="ic-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-gold" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v10M9 9.5h6M9 14.5h6"/></symbol>
+      <symbol id="icon-food" viewBox="0 0 24 24"><path d="M12 21V7M12 7c-3 0-5-2-5-5 3 0 5 2 5 5ZM12 7c3 0 5-2 5-5-3 0-5 2-5 5ZM12 13c-3 0-5-2-5-5 3 0 5 2 5 5ZM12 13c3 0 5-2 5-5-3 0-5 2-5 5Z"/></symbol>
+      <symbol id="icon-cities" viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l4-3v14M13 21V6l4 3v12M21 21v-8l-2-2"/></symbol>
+      <symbol id="icon-score" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6-5.4-2.9L6.6 19.8l1-6L3.2 9.5l6.1-.9z"/></symbol>
+      <symbol id="icon-flag" viewBox="0 0 24 24"><path d="M6 21V4h12l-3 4 3 4H6"/></symbol>
+      <symbol id="icon-army" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3.5 7-7 9-3.5-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-5"/></symbol>
+      <symbol id="icon-tech" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-4 7a3 3 0 0 0 2.6 4.5h6.8A3 3 0 0 0 18 16l-4-7V3"/></symbol>
+      <symbol id="icon-commander" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="icon-people" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c.8-3.5 3.2-5 6-5s5.2 1.5 6 5M14 15c2.5 0 5 1.2 6 4"/></symbol>
+    </svg>
+
     <canvas id="game" aria-label="游戏地图"></canvas>
 
     <header class="hud">
       <div class="hud-group">
-        <span class="stat">金币 <b id="stat-gold">0</b></span>
-        <span class="stat">粮食 <b id="stat-food">0</b></span>
-        <span class="stat">城市 <b id="stat-cities">0</b></span>
-        <span class="stat">分数 <b id="stat-score">0</b></span>
+        <span class="stat"><svg class="icon" aria-hidden="true"><use href="#icon-gold"/></svg>金币 <b id="stat-gold">0</b></span>
+        <span class="stat"><svg class="icon" aria-hidden="true"><use href="#icon-food"/></svg>粮食 <b id="stat-food">0</b></span>
+        <span class="stat"><svg class="icon" aria-hidden="true"><use href="#icon-cities"/></svg>城市 <b id="stat-cities">0</b></span>
+        <span class="stat"><svg class="icon" aria-hidden="true"><use href="#icon-score"/></svg>分数 <b id="stat-score">0</b></span>
         <span class="stat" id="stat-objective"></span>
       </div>
       <div class="hud-group" id="standings"></div>
       <div class="hud-group">
         <span class="stat" id="stat-timer">10:00</span>
+        <button id="button-overview" type="button">总览</button>
         <button id="button-pause" type="button">暂停</button>
         <button id="button-speed" type="button">1×</button>
         <button id="button-menu" type="button">菜单</button>
@@ -55,6 +69,21 @@
         </div>
       </div>
     </div>
+
+
+    <section id="overview" class="overview hidden" aria-label="国家总览" aria-hidden="true">
+      <header class="overview-bar">
+        <div>
+          <p class="overview-kicker">实时国家总览 <span class="overview-hint">Tab / 点击「总览」打开</span></p>
+          <h2 id="overview-title">国家</h2>
+        </div>
+        <div class="overview-actions">
+          <span id="overview-meta"></span>
+          <button id="overview-close" type="button">关闭</button>
+        </div>
+      </header>
+      <div id="overview-body" class="overview-body"></div>
+    </section>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
