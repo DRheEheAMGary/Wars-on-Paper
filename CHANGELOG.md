@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.11.5] - 2026-10-19
+
+### Fixed
+
+- 生产环境静态资源不再返回 `Cache-Control: public, max-age=300`，避免宝塔/Nginx 代理缓存导致更新后线上仍是旧 JS
+- 静态资源统一 `no-store`，HTML 继续 `no-cache`，部署后刷新即可看到新版本
+
 ## [1.11.4] - 2026-10-19
 
 ### Fixed

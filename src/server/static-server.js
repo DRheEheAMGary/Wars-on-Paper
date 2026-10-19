@@ -26,7 +26,7 @@ const MIME_TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-const DEFAULT_CACHE = 'public, max-age=300';
+const DEFAULT_CACHE = 'no-store';
 const HTML_CACHE = 'no-cache';
 
 /**
