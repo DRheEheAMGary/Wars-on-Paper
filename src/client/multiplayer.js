@@ -24,6 +24,7 @@ const createCities = /** @type {HTMLSelectElement} */ (mustElement('create-citie
 const createMinutes = /** @type {HTMLSelectElement} */ (mustElement('create-minutes'));
 const createMaxPlayers = /** @type {HTMLSelectElement} */ (mustElement('create-max-players'));
 const createMode = /** @type {HTMLSelectElement} */ (mustElement('create-mode'));
+const createMinutesLabel = mustElement('create-minutes-label');
 const joinCode = /** @type {HTMLInputElement} */ (mustElement('join-code'));
 const roomListElement = mustElement('room-list');
 const lobbyMain = mustElement('lobby-main');
@@ -259,7 +260,15 @@ function connect() {
   ws.addEventListener('error', () => {});
 }
 
+function syncCreateMode() {
+  const endless = createMode.value === 'endless';
+  createMinutes.disabled = endless;
+  createMinutesLabel.classList.toggle('is-disabled', endless);
+}
+
 populateSelects();
+syncCreateMode();
+createMode.addEventListener('change', syncCreateMode);
 nameInput.value = window.localStorage.getItem('wop-name') ?? '指挥官';
 renderRoom();
 connect();
