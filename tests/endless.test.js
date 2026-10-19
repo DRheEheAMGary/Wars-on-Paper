@@ -39,6 +39,32 @@ test('waves spawn rebel armies and eventually attack cities', () => {
   assert.ok(attackSeen, 'rebels should attack at least once');
 });
 
+test('rebel waves only attack cities adjacent or sea-connected to their staging city', () => {
+  const state = createMatch(map, balance, {
+    seed: 41,
+    aiCount: 0,
+    mode: 'endless',
+  });
+  let rebelSeen = 0;
+  for (let tick = 0; tick < 1800; tick += 1) {
+    step(state, balance, []);
+    for (const army of state.armies) {
+      if (army.owner !== -1) continue;
+      rebelSeen += 1;
+      const source = map.cities[army.fromCity];
+      const reachable = new Set([
+        ...(source.neighbors ?? []),
+        ...(source.seaNeighbors ?? []),
+      ]);
+      assert.ok(
+        reachable.has(army.toCity),
+        'rebel target must be adjacent or sea-connected to its staging city',
+      );
+    }
+  }
+  assert.ok(rebelSeen > 0);
+});
+
 test('endless mode does not end on the timed match clock', () => {
   const state = createMatch(map, balance, {
     seed: 31,

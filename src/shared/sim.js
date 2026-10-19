@@ -609,6 +609,21 @@ function spawnWave(state, balance) {
   const neutral = state.cities.filter((/** @type {any} */ city) => city.owner === null);
   if (neutral.length === 0) return;
 
+  // Rebels no longer teleport across the map: each staging neutral city can
+  // only attack cities adjacent or reachable by sea from it.
+  const ownedIds = new Set(owned.map((/** @type {any} */ city) => city.id));
+  const staging = [];
+  for (const source of neutral) {
+    const targets = [
+      ...(source.neighbors ?? []),
+      ...(source.seaNeighbors ?? []),
+    ]
+      .filter((/** @type {number} */ id) => ownedIds.has(id))
+      .map((/** @type {number} */ id) => state.cities[id]);
+    if (targets.length > 0) staging.push({ source, targets });
+  }
+  if (staging.length === 0) return;
+
   const armyCount = Math.min(
     config.maxArmiesPerWave ?? 6,
     (config.armiesBase ?? 1) + Math.floor(state.wave / (config.armiesPerWaveStep ?? 2)),
@@ -616,10 +631,10 @@ function spawnWave(state, balance) {
   const totalSoldiers = config.baseSoldiers + state.wave * config.soldiersPerWave;
 
   for (let index = 0; index < armyCount; index += 1) {
-    const target = owned[Math.floor(nextStateRandom(state) * owned.length)];
-    const source =
-      neutral[Math.floor(nextStateRandom(state) * neutral.length)] ??
-      state.cities[Math.floor(nextStateRandom(state) * state.cities.length)];
+    const pick = staging[Math.floor(nextStateRandom(state) * staging.length)];
+    const source = pick.source;
+    const target =
+      pick.targets[Math.floor(nextStateRandom(state) * pick.targets.length)];
     if (!target || !source || target.id === source.id) continue;
 
     const siegeCount =
