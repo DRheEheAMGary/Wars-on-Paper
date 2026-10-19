@@ -45,7 +45,7 @@ function ownerColor(state, owner) {
  * @param {import('../../shared/mapgen.js').GameMap} map
  * @param {any} state
  * @param {import('./camera.js').Camera} camera
- * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number, dispatchOdds?: number | null }} options
+ * @param {{ viewWidth: number, viewHeight: number, dpr?: number, hoverId?: number, selectedId?: number, tick?: number, dispatchFrom?: number, dispatchPoint?: [number, number] | null, dispatchTarget?: number, dispatchAmount?: number, dispatchOdds?: number | null, effects?: any[] }} options
  */
 export function drawMatch(ctx, map, state, camera, options) {
   const {
@@ -60,6 +60,7 @@ export function drawMatch(ctx, map, state, camera, options) {
     dispatchTarget = -1,
     dispatchAmount = 0,
     dispatchOdds = null,
+    effects = [],
   } = options;
   const { zoom } = camera;
   const screen = (/** @type {number} */ pixels) => pixels / zoom;
@@ -258,9 +259,52 @@ export function drawMatch(ctx, map, state, camera, options) {
     ctx.fillStyle = ownerColor(state, army.owner);
     ctx.fill();
 
+    const angle = Math.atan2(to.center[1] - from.center[1], to.center[0] - from.center[0]);
+    const head = screen(6);
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(angle) * head, y + Math.sin(angle) * head);
+    ctx.lineTo(
+      x + Math.cos(angle + 2.5) * head,
+      y + Math.sin(angle + 2.5) * head,
+    );
+    ctx.lineTo(
+      x + Math.cos(angle - 2.5) * head,
+      y + Math.sin(angle - 2.5) * head,
+    );
+    ctx.closePath();
+    ctx.fillStyle = ownerColor(state, army.owner);
+    ctx.fill();
+
     ctx.font = `${screen(10)}px ${FONT_STACK}`;
     ctx.fillStyle = '#1b1b1b';
     ctx.fillText(String(army.soldiers), x, y - screen(8));
+  }
+
+  // Capture / battle feedback effects.
+  for (const effect of effects) {
+    const city = map.cities[effect.cityId];
+    if (!city) continue;
+    const progress = Math.max(0, Math.min(1, effect.progress ?? 0));
+    const [x, y] = city.center;
+    if (effect.type === 'capture') {
+      ctx.beginPath();
+      ctx.arc(x, y, screen(10 + 70 * progress), 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(224, 73, 47, ${0.7 * (1 - progress)})`;
+      ctx.lineWidth = screen(3 * (1 - progress) + 0.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, screen(6), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.55 * (1 - progress)})`;
+      ctx.fill();
+    } else if (effect.type === 'battle') {
+      ctx.beginPath();
+      ctx.arc(x, y, screen(14 + 34 * progress), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200, 40, 30, ${0.22 * (1 - progress)})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(200, 40, 30, ${0.6 * (1 - progress)})`;
+      ctx.lineWidth = screen(2);
+      ctx.stroke();
+    }
   }
 
   ctx.strokeStyle = WORLD_BORDER;

@@ -6,6 +6,7 @@
  */
 
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_PORT } from '../shared/constants.js';
 import { serveStatic } from './static-server.js';
@@ -14,8 +15,20 @@ import { MultiplayerServer } from './multiplayer.js';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const PACKAGE = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+);
 
 const server = createServer((req, res) => {
+  const pathname = (req.url ?? '/').split('?')[0];
+  if (pathname === '/healthz') {
+    const stats = multiplayer.stats();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({ ok: true, version: PACKAGE.version, rooms: stats.rooms, players: stats.players }),
+    );
+    return;
+  }
   void serveStatic(ROOT, req, res);
 });
 

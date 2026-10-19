@@ -7,7 +7,7 @@
  * Run with: npm run dev
  */
 
-import { watch } from 'node:fs';
+import { readFileSync, watch } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const SSE_PATH = '/__dev/sse';
+const PACKAGE = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
 const DEV_CLIENT = [
   '<script>',
@@ -67,6 +68,15 @@ const server = createServer(async (req, res) => {
 
   if (pathname === SSE_PATH) {
     handleSse(req, res);
+    return;
+  }
+
+  if (pathname === '/healthz') {
+    const stats = multiplayer.stats();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({ ok: true, version: PACKAGE.version, rooms: stats.rooms, players: stats.players }),
+    );
     return;
   }
 

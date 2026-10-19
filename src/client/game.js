@@ -113,6 +113,8 @@ let drawQueued = false;
 let panelCityId = -1;
 /** @type {any} */
 let panelRefs = null;
+/** @type {{ cityId: number, type: string, started: number }[]} */
+let effects = [];
 let myPlayerId = 0;
 /** @type {WebSocket | null} */
 let ws = null;
@@ -296,7 +298,15 @@ function updateHud() {
 
 /** @param {any[]} events */
 function handleEvents(events) {
+  const now = performance.now();
   for (const event of events) {
+    if (event.type === 'captured' || event.type === 'battle') {
+      effects.push({
+        cityId: event.cityId,
+        type: event.type === 'captured' ? 'capture' : 'battle',
+        started: now,
+      });
+    }
     if (event.type === 'captured') {
       showToast(`占领 ${map.cities[event.cityId]?.name ?? '城市'}`);
     } else if (event.type === 'battle') {
@@ -758,6 +768,13 @@ function requestDraw() {
 
 function render() {
   if (!map || !snapshot) return;
+  const now = performance.now();
+  effects = effects.filter((effect) => now - effect.started < 900);
+  const activeEffects = effects.map((effect) => ({
+    cityId: effect.cityId,
+    type: effect.type,
+    progress: (now - effect.started) / 900,
+  }));
   drawMatch(context, map, snapshot, camera, {
     viewWidth: window.innerWidth,
     viewHeight: window.innerHeight,
@@ -770,7 +787,9 @@ function render() {
     dispatchTarget,
     dispatchAmount,
     dispatchOdds,
+    effects: activeEffects,
   });
+  if (effects.length > 0) requestDraw();
 }
 
 function resizeCanvas() {

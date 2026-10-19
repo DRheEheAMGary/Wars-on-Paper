@@ -29,7 +29,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     } else if (action === 'multi') {
       window.location.href = '/multiplayer.html';
     } else if (action === 'help') {
-      showNotice('目标：占领城市、扩张领土。单人游戏可设置种子、AI 数量、难度与时长；对局中单击选中、拖拽派兵，ESC 暂停。');
+      window.location.href = '/help.html';
     }
   });
 });

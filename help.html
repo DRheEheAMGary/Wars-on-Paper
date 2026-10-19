@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Wars on Paper — 玩法说明" />
+    <meta name="color-scheme" content="light" />
+    <title>玩法说明 · Wars on Paper</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff'/%3E%3Cpath d='M18 74 L42 24 L54 56 L82 30 L72 78 Z' fill='%23e0492f'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/client/styles/main.css" />
+    <link rel="stylesheet" href="/src/client/styles/setup.css" />
+    <link rel="stylesheet" href="/src/client/styles/help.css" />
+  </head>
+  <body>
+    <main class="screen setup-screen">
+      <div class="column help-column">
+        <a class="setup-back" href="/">← 返回主菜单</a>
+        <p class="setup-kicker">玩法说明</p>
+        <h1 class="setup-title">纸上谈兵</h1>
+        <p class="tagline">
+          100+ 座城市铺满地图，实时扩张领土，在 10 分钟内成为最后的赢家。
+        </p>
+
+        <nav class="help-toc" aria-label="目录">
+          <a href="#goal">目标</a>
+          <a href="#controls">操作</a>
+          <a href="#economy">资源与城市</a>
+          <a href="#units">兵种</a>
+          <a href="#tech">科技</a>
+          <a href="#buildings">建筑</a>
+          <a href="#diplomacy">外交</a>
+          <a href="#modes">单机 / 多人</a>
+        </nav>
+
+        <section id="goal" class="help-section">
+          <h2>目标</h2>
+          <p>
+            占领更多城市与领土、累计分数。倒计时结束时分数最高者获胜；如果一名玩家占满全图则立即胜利。
+          </p>
+          <pre class="help-code">分数 = 城市数 × 100 + 科技数 × 50 + 累计歼敌 × 0.2</pre>
+        </section>
+
+        <section id="controls" class="help-section">
+          <h2>操作</h2>
+          <ul>
+            <li><b>单击</b>城市：选中并打开左侧面板。</li>
+            <li><b>派兵数量滑条</b>：决定下一次派出多少兵（默认一半）。</li>
+            <li><b>拖拽</b>：按住已选中的城市，拖到目标城市后松开。
+              <ul>
+                <li>拖到自己的城市 = 调兵（不限距离，按最短陆/海路径行军）</li>
+                <li>拖到相邻或渡海城市 = 进攻；拖拽时不显示落点则不会出兵</li>
+              </ul>
+            </li>
+            <li><b>空格 / 拖拽空白</b>：平移地图；<b>滚轮</b>缩放；<b>双击</b>复位视角。</li>
+            <li><b>ESC</b> 或「菜单」：暂停（单人）；多人中「退出」会离开房间。</li>
+          </ul>
+        </section>
+
+        <section id="economy" class="help-section">
+          <h2>资源与城市</h2>
+          <ul>
+            <li><b>金币</b>：招募、升级城市、研发科技、建造建筑。</li>
+            <li><b>粮食</b>：维持军队；断粮会持续减员。</li>
+            <li><b>人口</b>：每城独立增长，招募消耗人口。</li>
+            <li>城市 1–5 级：等级越高，金币/粮食产出、人口上限、驻军上限越高；升级需要金币与时间。</li>
+          </ul>
+        </section>
+
+        <section id="units" class="help-section">
+          <h2>兵种</h2>
+          <table class="help-table">
+            <thead>
+              <tr><th>兵种</th><th>特点</th><th>克制</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>步兵</td><td>均衡、便宜</td><td>克攻城车</td></tr>
+              <tr><td>骑兵</td><td>攻击高、速度快</td><td>克步兵</td></tr>
+              <tr><td>攻城车</td><td>慢、贵，对城墙强势</td><td>克城墙</td></tr>
+            </tbody>
+          </table>
+          <p>派兵时按当前驻军构成比例拆分；队伍行军速度按最慢兵种计算。</p>
+        </section>
+
+        <section id="tech" class="help-section">
+          <h2>科技树（3 系 × 3 层）</h2>
+          <ul>
+            <li><b>军事</b>：操练 → 甲胄 → 战术（攻击 / 防御 / 行军）</li>
+            <li><b>经济</b>：税制 → 仓储 → 人口（金币 / 粮食 / 人口上限）</li>
+            <li><b>扩张</b>：筑路 → 攻城 → 声望（行军 / 攻城车 / 占领驻军）</li>
+          </ul>
+          <p>研发需要前置科技与时间，同一时间只能研发一项，完成后全局生效。</p>
+        </section>
+
+        <section id="buildings" class="help-section">
+          <h2>建筑（每城 2 格）</h2>
+          <ul>
+            <li><b>市集</b>：+25% 金币　<b>粮仓</b>：+25% 粮食</li>
+            <li><b>兵营</b>：+30% 驻军上限　<b>城墙</b>：+20% 防御</li>
+          </ul>
+          <p>建筑即时建造，占领城市后建筑保留。</p>
+        </section>
+
+        <section id="diplomacy" class="help-section">
+          <h2>外交</h2>
+          <ul>
+            <li><b>结盟</b>：盟友之间不能互相攻击，最多 2 名盟友。</li>
+            <li><b>停战</b>：双方 60 秒内不能互相攻击。</li>
+            <li><b>背叛</b>：单方断盟，60 秒内不能再次结盟，且攻击力 −10%。</li>
+          </ul>
+          <p>请求 30 秒内有效；AI 会主动发起或回应外交请求。</p>
+        </section>
+
+        <section id="modes" class="help-section">
+          <h2>单机 / 多人</h2>
+          <ul>
+            <li><b>单人游戏</b>：设置种子、城市数、AI 数量、难度（影响 AI 经济与进攻性）与时长。</li>
+            <li><b>多人乱斗</b>：进入房间大厅，创建房间或输入房间码加入；房主开始对局。</li>
+            <li>刷新页面会用当前标签页的 token 自动重连；房间满员时可观战。</li>
+            <li>对局中也可以中途加入：系统会在空旷区域分配 3 座城市，并给予 1.5 倍启动资源。</li>
+          </ul>
+        </section>
+
+        <p class="help-footer">
+          <a href="/setup.html">开始单人游戏 →</a>
+          <a href="/multiplayer.html">进入多人大厅 →</a>
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

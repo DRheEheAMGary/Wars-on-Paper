@@ -562,6 +562,12 @@ export class MultiplayerServer {
     };
   }
 
+  stats() {
+    let players = 0;
+    for (const room of this.rooms.values()) players += room.members.size;
+    return { rooms: this.rooms.size, players };
+  }
+
   roomList() {
     return [...this.rooms.values()]
       .filter((room) => room.phase !== 'ended' || room.members.size > 0)
