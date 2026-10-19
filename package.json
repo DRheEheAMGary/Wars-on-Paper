@@ -1,0 +1,19 @@
+{
+  "name": "wars-on-paper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Wars on Paper — real-time territory conquest game for the web",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node src/server/dev.js",
+    "server": "node src/server/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

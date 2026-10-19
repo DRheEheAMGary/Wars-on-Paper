@@ -1,0 +1,192 @@
+/* Wars on Paper — bright paper theme.
+   Visual language: warm paper, ink lines, vivid player colours. */
+
+:root {
+  --paper: #f7f1e3;
+  --paper-deep: #efe4cd;
+  --ink: #2c2a25;
+  --ink-soft: #6f6757;
+  --line: #d8cab0;
+  --accent: #d24a35;
+  --accent-deep: #a83424;
+  --accent-soft: #f5cfc6;
+  --white: #fffdf7;
+  --radius: 16px;
+  --shadow: 0 20px 45px rgba(58, 48, 34, 0.13);
+  --font-display: 'Songti SC', 'Source Han Serif SC', 'Noto Serif SC', Georgia, serif;
+  --font-body: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(1100px 650px at 12% 0%, rgba(255, 253, 247, 0.9), transparent 65%),
+    radial-gradient(900px 620px at 92% 100%, rgba(239, 228, 205, 0.75), transparent 62%),
+    repeating-linear-gradient(0deg, rgba(44, 42, 37, 0.028) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgba(44, 42, 37, 0.028) 0 1px, transparent 1px 34px);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.screen {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 56px 24px 40px;
+}
+
+.hero {
+  max-width: 720px;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 18px;
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8.4vw, 6.2rem);
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  line-height: 1.02;
+}
+
+.tagline {
+  margin: 22px auto 0;
+  max-width: 30em;
+  color: var(--ink-soft);
+  font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+  line-height: 1.9;
+}
+
+.menu {
+  display: grid;
+  width: min(360px, 100%);
+  gap: 12px;
+}
+
+.menu-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: 0 2px 0 rgba(44, 42, 37, 0.08);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.menu-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 10px 22px rgba(58, 48, 34, 0.16);
+  transform: translateY(-2px);
+}
+
+.menu-button:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.menu-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 0 rgba(44, 42, 37, 0.1);
+}
+
+.menu-button.primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+  box-shadow: 0 12px 26px rgba(168, 52, 36, 0.32);
+  color: #fff8f2;
+}
+
+.menu-button.primary:hover:not(:disabled) {
+  border-color: transparent;
+  box-shadow: 0 16px 32px rgba(168, 52, 36, 0.38);
+}
+
+.menu-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.badge {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.notice {
+  min-height: 1.5em;
+  max-width: 34em;
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.notice.is-visible {
+  opacity: 1;
+}
+
+.footer {
+  display: flex;
+  gap: 16px;
+  margin-top: 28px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 520px) {
+  .screen {
+    gap: 28px;
+    padding: 40px 18px 28px;
+  }
+
+  .tagline {
+    font-size: 0.95rem;
+  }
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Wars on Paper — 网页端实时领土争夺游戏" />
+    <title>Wars on Paper</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23f7f1e3'/%3E%3Cpath d='M18 74 L42 24 L54 56 L82 30 L72 78 Z' fill='%23d24a35' stroke='%232c2a25' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/client/styles/main.css" />
+  </head>
+  <body>
+    <main id="app" class="screen">
+      <header class="hero">
+        <p class="eyebrow">纸面推演 · 实时领土争夺</p>
+        <h1>Wars on Paper</h1>
+        <p class="tagline">
+          占领城市，吞并领土，<br />
+          在 12 分钟内成为最后的赢家。
+        </p>
+      </header>
+
+      <nav class="menu" aria-label="主菜单">
+        <button class="menu-button primary" type="button" data-action="single">
+          单人游戏
+        </button>
+        <button class="menu-button" type="button" data-action="multi" disabled>
+          多人乱斗 <span class="badge">开发中</span>
+        </button>
+        <button class="menu-button" type="button" data-action="help">
+          玩法说明
+        </button>
+      </nav>
+
+      <p id="notice" class="notice" role="status" aria-live="polite"></p>
+
+      <footer class="footer">
+        <span id="version">v0.0.0</span>
+        <span>M0 · 工程骨架</span>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/client/main.js"></script>
+  </body>
+</html>
