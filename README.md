@@ -8,7 +8,16 @@
 
 ## 当前状态
 
-规划阶段（v0.2：关键假设已确认，等待开工）。设计与开发计划见 [docs/PLAN.md](docs/PLAN.md)。
+规划阶段，尚未开工。首个版本 `0.1.0` 将在 M0（工程骨架）完成时发布。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [docs/PLAN.md](docs/PLAN.md) | 玩法设计、数值、技术架构、里程碑计划 |
+| [docs/VERSIONING.md](docs/VERSIONING.md) | 版本号规则、协议/状态版本、发布流程 |
+| [AGENT.md](AGENT.md) | AI 协作约定（面向 Agent 与协作者） |
+| [CHANGELOG.md](CHANGELOG.md) | 变更记录 |
 
 ## 计划中的启动方式
 

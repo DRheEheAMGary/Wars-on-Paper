@@ -489,3 +489,5 @@ LOBBY(45s) → MATCH(12min) → RESULT(20s) → LOBBY ...
 ## 13. 下一步
 
 计划已按上述决策更新完毕，仓库目前只包含文档。你确认开工后，从 **M0 + M1** 开始：交付可拖拽缩放、显示随机边缘城市领土的地图原型（`npm run dev` 直接打开），随后进入 M2 核心循环。
+
+协作约定见 [`AGENT.md`](../AGENT.md)，版本号规则见 [`docs/VERSIONING.md`](VERSIONING.md)。

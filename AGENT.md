@@ -1,0 +1,194 @@
+# AGENT.md — Wars on Paper 协作约定
+
+> 面向在本仓库工作的所有 AI Agent（及人类协作者）。
+> **开始任何任务前，先读完本文件与 [`docs/PLAN.md`](docs/PLAN.md)。**
+> 优先级：用户当次明确指令 > 本文件 > 通用编码习惯。设计细节以 `docs/PLAN.md` 为准。
+
+---
+
+## 1. 项目速览
+
+- **名称**：Wars on Paper
+- **内容**：网页端实时领土争夺游戏。地图由上百座城市节点组成，每城一块随机边缘的领土多边形并铺满全图；占领城市吞并领土，12 分钟内按城市数与领土占比决胜负。单机 vs AI + 单房间 16–32 人乱斗。
+- **技术栈**：原生 ES Module + Canvas 2D（浏览器直接运行源码）；Node.js（`ws`）+ 静态服务器；**免编译、无打包、无 TypeScript 编译**。
+- **状态**：规划完成，尚未开工；下一里程碑 M0（工程骨架）。
+- **仓库**：https://github.com/DRheEheAMGary/Wars-on-Paper
+
+### 必读文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/PLAN.md`](docs/PLAN.md) | 玩法、数值、架构、里程碑（设计唯一来源） |
+| [`docs/VERSIONING.md`](docs/VERSIONING.md) | 版本号、协议版本、发布流程 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 变更记录 |
+| [`README.md`](README.md) | 对外介绍与启动方式 |
+
+---
+
+## 2. 硬性约束（违反即打回）
+
+1. **免编译**：禁止引入 webpack / Vite / Rollup / esbuild / Babel / tsc / JSX。浏览器必须直接加载 `src/` 下的源码；所有导入使用浏览器原生 ESM。
+2. **依赖白名单**：运行时仅允许 `ws`。禁止新增任何 npm 依赖（含 devDependency），除非用户明确同意。测试只用 Node 内置 `node --test`。
+3. **分层边界**：
+   - `src/shared/`：纯逻辑。禁止 DOM、`fetch`、`WebSocket`、`localStorage`、Node API、`Math.random()`、`Date.now()`。
+   - `src/client/`：渲染、输入、网络客户端。可以 import `shared`，但不得绕过指令接口直接改状态。
+   - `src/server/`：房间、网络、静态服务。可以 import `shared`，不得依赖 DOM。
+4. **服务器权威**：多人模式下客户端只发指令；服务器校验归属、邻接、资源、冷却、限频，非法指令不改变状态。
+5. **确定性**：模拟推进只依赖种子 RNG 与 tick 计数；同一「种子 + 指令序列」必须得到同一结果。禁止在 `shared/` 使用 `Math.random` / `Date.now` / 遍历顺序不稳定的对象。
+6. **数值外置**：所有平衡数值（产出、成本、冷却、伤害、上限）放在 `data/balance.json`；`shared/` 中禁止硬编码平衡常量（公式系数可定义在常量文件并注明来源）。
+7. **语言**：界面文案中文；标识符、注释、提交信息、日志英文。
+8. **不破坏用户环境**：不提交密钥/令牌；不执行破坏性 git 命令；不删除用户数据（存档、`data/results.json`、游戏进度）。
+
+---
+
+## 3. 目录边界
+
+| 目录 | 职责 | 禁止 |
+| --- | --- | --- |
+| `src/shared/` | 地图生成、经济、战斗、指令校验、tick、AI、快照 | DOM/网络/Node API/非确定性随机 |
+| `src/client/` | 页面状态机、Canvas 渲染、输入、WebSocket 客户端、Worker | 直接修改对局状态、复制一份规则逻辑 |
+| `src/server/` | 静态服务、WebSocket、房间状态机、广播 | DOM、在 tick 中做阻塞 IO |
+| `tools/` | 地图调试页、性能基准 | 被 `src/` 反向依赖 |
+| `data/` | `balance.json`、可选结果文件 | 密码/密钥/个人数据 |
+| `tests/` | `node --test` 用例，镜像 `shared` 模块结构 | 依赖浏览器环境 |
+| `docs/` | 设计、版本、部署文档 | 与代码冲突时不更新 |
+| `vendor/` | 手动放入的第三方 ESM（默认空） | 构建产物、压缩混淆代码 |
+
+`shared` 内部依赖必须是单向无环 DAG；`shared` 不得 import `client` / `server`。
+
+---
+
+## 4. 运行与验证
+
+| 命令 | 作用 |
+| --- | --- |
+| `npm install` | 安装唯一运行依赖 `ws`（M0 后可用） |
+| `npm run dev` | 开发服务器 + SSE 热刷新，端口 `8080` |
+| `npm run server` | 静态资源 + 多人 WebSocket，端口 `8080` |
+| `npm test` | `node --test`，必须全绿 |
+| `node tools/bench.js` | 模拟/渲染性能基准 |
+| `tools/mapdebug.html` | 地图生成可视化调试页 |
+
+**Node ≥ 20**；浏览器以最新版 Chrome / Firefox / Safari 手动验证。
+
+### 改动验证矩阵
+
+| 改动范围 | 最低验证 |
+| --- | --- |
+| `src/shared/` 逻辑 | `npm test` + 单机开一局完整打到结束 |
+| `src/client/` 渲染/交互 | 手动：拖拽/缩放/选城/派兵/结算；1440p 下 60fps |
+| `src/server/` 网络/房间 | 两个浏览器对战 + 断线重连 + 观战 |
+| `data/balance.json` | 跑一局，观察经济与战斗曲线是否合理 |
+| 地图生成 | `tools/mapdebug.html` + 地图单元测试（无缝/无重叠/可复现） |
+
+---
+
+## 5. 代码规范
+
+- **模块**：ESM；相对导入**必须带 `.js` 扩展名**；统一具名导出（不写 `export default`）；禁止循环依赖。
+- **类型**：每个文件顶部 `// @ts-check`；状态与消息用 JSDoc `@typedef` 定义，集中在 `shared/state.js`（或 `shared/types.js`）。不引入 `.ts` 文件、不运行 `tsc`。
+- **风格**：2 空格缩进、单引号、语句结尾分号、行宽 ≤ 100；函数 ≤ 60 行、文件 ≤ 400 行，超出就拆。
+- **命名**：`camelCase` 变量/函数、`PascalCase` 类型、`SCREAMING_SNAKE_CASE` 常量、CSS 用 kebab-case。
+- **结构**：优先纯函数；所有状态变更集中在 `sim.js` 的 tick 中；事件通过返回值传出，不写全局可变单例。
+- **注释**：英文，解释「为什么」而不是「做了什么」；不写显然的废话注释。
+- **错误处理**：服务器对非法指令返回结构化错误码（不抛异常打断 tick）；`shared` 对非法输入必须保持状态不变。
+- **前端**：玩家昵称/聊天等用户内容一律 `textContent`，禁止 `innerHTML` 拼接（XSS）；Canvas 绘制与 DOM HUD 分离；高分屏乘 `devicePixelRatio`。
+- **Worker**：Worker 与主线程之间只传可结构化克隆的对象（纯 JSON）。
+
+---
+
+## 6. 定义完成（DoD）
+
+一个任务完成前逐项确认：
+
+- [ ] `npm test` 全绿
+- [ ] 新增/修改的 `shared` 规则有对应单测（边界条件必须覆盖）
+- [ ] 按「改动验证矩阵」完成手动验证
+- [ ] `CHANGELOG.md` 的 `[Unreleased]` 已记录
+- [ ] 涉及规则/数值/接口时，对应文档（`PLAN`/`VERSIONING`）已同步
+- [ ] 没有新增依赖、构建步骤或密钥
+- [ ] 提交信息符合 Conventional Commits
+- [ ] 改动范围之外没有顺手重构（避免混入无关变更）
+
+---
+
+## 7. 版本与提交
+
+- **版本规范以 [`docs/VERSIONING.md`](docs/VERSIONING.md) 为准**，不得自行发明版本号。
+- 版本号只在发布时 bump：里程碑完成 → `MINOR`；里程碑之间的修复发布 → `PATCH`；1.0 前破坏性改动走 `MINOR`。
+- `package.json` 的 `version` 是唯一事实来源；tag、CHANGELOG、页脚、服务器启动日志必须一致。
+- 消息结构/状态结构不兼容变更时，必须同时递增 `PROTOCOL_VERSION` / `STATE_VERSION`，否则视为漏改。
+- 提交格式：`<type>(<scope>): <summary>`，英文、小写开头、不用句号。
+  - 例：`feat(sim): add march arrival combat resolution`
+  - 例：`fix(ui): clamp camera to map bounds`
+  - 例：`balance(data): reduce cavalry recruitment cost`
+- 一个提交只表达一个意图；发布提交固定为 `chore(release): vX.Y.Z`。
+- 禁止 `force-push main`；禁止删除/重写已发布 tag；禁止把 `node_modules/` 提交进仓库。
+
+---
+
+## 8. Agent 工作方式
+
+1. **开工前**：读 `docs/PLAN.md` 的当前里程碑与验收标准；`git status` + `git log` 确认工作区状态；跑一次 `npm test` 建立基线。
+2. **先查后写**：先在 `shared/` 找既有接口与工具（几何、RNG、指令校验），避免重复实现。
+3. **接口优先**：跨层改动先定 `shared` 的接口/数据结构，再写渲染与网络。
+4. **小步提交**：每个可独立验证的步骤一次提交；大任务中途报告进度，不静默做几小时。
+5. **不猜需求**：设计上有歧义时，先按 `PLAN` 的默认值实现并在汇报中标注；需要用户决策的点明确列出。
+6. **计划冲突**：以 `docs/PLAN.md` 为准；确需修改设计时，先改文档、说明理由，再改代码。
+7. **汇报格式**（固定）：
+   ```
+   完成：<做了什么>
+   改动：<文件列表>
+   验证：<命令与结果、手动验收点>
+   遗留/风险：<未完成项、已知问题>
+   下一步：<建议>
+   ```
+8. **会话恢复**：检查是否有未提交改动；确认 `npm test` 通过；再继续任务。
+9. **范围控制**：严格按里程碑推进，不提前实现 `PLAN` 第 11 节「v1 不做」的功能。
+
+---
+
+## 9. 性能与质量预算
+
+| 指标 | 目标 |
+| --- | --- |
+| 服务器 tick（240 城 / 600 行军 / 32 玩家） | p95 < 2ms |
+| 单客户端下行流量 | 典型 < 10 KB/s |
+| 前端帧率 | 1440p 下 60fps |
+| 首屏 JS（零框架） | < 300 KB |
+| 浏览器内存 | < 200 MB |
+
+- 不做提前优化；但改动 tick 循环、渲染循环、快照编码时，必须跑 `tools/bench.js` 对比前后数据并写进汇报。
+- 地图生成只在开局跑一次，允许几十毫秒；单机模拟必须在 Worker 中，主线程不得卡顿。
+
+---
+
+## 10. 安全
+
+- 服务器校验一切输入：城市归属、邻接、资源、人口、冷却、昵称长度与字符。
+- 客户端限频：单玩家指令 ≤ 20 条/秒；服务器同样限频并丢弃超限指令。
+- 不使用 `eval` / `new Function`；不拼接用户内容进 HTML/JS。
+- 不记录、不传输不必要的个人信息；token 只存本地，不写入日志。
+- 不提交 `.env`、密钥、证书；发现疑似密钥立即停止并提醒用户。
+
+---
+
+## 11. 常见坑（务必避免）
+
+1. **地图抖动留缝**：共享边必须用同一条曲线（按边 ID 生成随机流），两城反向拼接；抖动幅度 ≤ 边长 15%。
+2. **浏览器 ESM 路径**：必须带 `.js`，且大小写与文件名一致；`file://` 打开会因 CORS 失败，必须走 `npm run dev`。
+3. **Worker 线程**：不能 import DOM 相关模块；消息只传纯 JSON。
+4. **Canvas 模糊**：设置 `canvas.width = cssWidth * devicePixelRatio` 并缩放上下文。
+5. **后台标签页降频**：`setTimeout` 不可靠，服务器用时间累积补 tick，不假设定时器精确。
+6. **开发服务器**：SSE 热刷新只在 `dev.js` 注入，生产 `server.js` 不得输出该脚本。
+7. **对象遍历顺序**：快照/delta 计算必须显式按 id 排序，避免键顺序差异导致漂移。
+8. **整数与浮点**：资源用浮点但展示取整；比较资源时留 `1e-6` 容差，避免「差 1 金币不能升级」。
+
+---
+
+## 12. 当前状态与下一步
+
+- **阶段**：规划完成，未开工。
+- **下一里程碑**：**M0 工程骨架**（`package.json`、`jsconfig.json`、`src/` 目录、零依赖 `dev.js` + SSE 热刷新、`index.html` 主菜单空壳、`npm test` 基线）。
+- **M0 验收**：`npm run dev` 打开 `localhost:8080`；修改源码后浏览器自动刷新；`npm test` 通过。
+- 用户确认开工后再动手；未开工前只允许文档类改动（本文件、`PLAN`、`VERSIONING`、`README`、`CHANGELOG`）。
