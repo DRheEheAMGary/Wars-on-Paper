@@ -72,7 +72,8 @@ function regenerate(seed, cityCount) {
   statsElement.textContent =
     `${map.cities.length} 座城市 · 种子 ${map.seed} · 生成 ` +
     `${generationMs.toFixed(0)} ms · ${map.meta.continentCount} 块大陆 · ` +
-    `陆地 ${(map.meta.landAreaFraction * 100).toFixed(1)}%`;
+    `陆地 ${(map.meta.landAreaFraction * 100).toFixed(1)}% · ` +
+    `海洋 ${((1 - map.meta.landAreaFraction) * 100).toFixed(1)}%`;
   updateHoverInfo();
 
   const url = new URL(window.location.href);

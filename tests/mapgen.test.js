@@ -47,6 +47,10 @@ test('land territories do not overlap and ocean exists around them', () => {
 
   assert.ok(landPoints > 100, `only ${landPoints} land sample points`);
   assert.ok(oceanPoints > 50, `only ${oceanPoints} ocean sample points`);
+  assert.ok(
+    oceanPoints > landPoints * 2,
+    `expected ~70% ocean, sampled land ${landPoints} / ocean ${oceanPoints}`,
+  );
 });
 
 /** @param {import('../src/shared/mapgen.js').GameMap} map */
@@ -160,11 +164,12 @@ test('territory sizes and aspect ratios vary noticeably', () => {
   assert.ok(aspectSpread > 1.5, `aspect max/min was only ${aspectSpread.toFixed(2)}`);
 });
 
-test('land occupies a plausible share of the world', () => {
+test('ocean covers exactly 70% of the rectangular world', () => {
   assert.ok(
-    MAP.meta.landAreaFraction > 0.15 && MAP.meta.landAreaFraction < 0.85,
+    Math.abs(MAP.meta.landAreaFraction - 0.3) < 0.005,
     `land fraction was ${MAP.meta.landAreaFraction}`,
   );
+  assert.ok(Math.abs(MAP.width * MAP.height - MAP.meta.worldArea) < 1e-6);
 });
 
 test('single-city maps are valid', () => {

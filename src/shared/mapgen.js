@@ -85,6 +85,9 @@ export const MAP_DEFAULTS = Object.freeze({
 const LAND_CANDIDATE_FRACTION_MIN = 0.7;
 const LAND_CANDIDATE_FRACTION_MAX = 0.78;
 
+/** Requested ocean share of the final rectangular world. */
+const OCEAN_FRACTION = 0.7;
+
 const QUANT = 1000; // 0.001 world units
 
 const CITY_PREFIX = [
@@ -970,11 +973,38 @@ export function generateMap(options = {}) {
   const terrains = assignTerrains(warpedSites, width, height, seed);
 
   let areaSum = 0;
-  /** @type {MapCity[]} */
-  const cities = polygons.map((polygon, index) => {
-    const area = Math.abs(polygonArea(polygon));
-    areaSum += area;
+  for (const polygon of polygons) areaSum += Math.abs(polygonArea(polygon));
 
+  // Keep the generated landmass exactly as it is, but enlarge the world around
+  // it until the ocean covers 70% of the rectangle. The land is then centred
+  // inside the new frame.
+  const targetWorldArea = areaSum / (1 - OCEAN_FRACTION);
+  const scale = Math.sqrt(targetWorldArea / (width * height));
+  const finalWidth = Math.round(width * scale);
+  const finalHeight = Math.round(height * scale);
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const polygon of polygons) {
+    for (const [x, y] of polygon) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  const offsetX = finalWidth / 2 - (minX + maxX) / 2;
+  const offsetY = finalHeight / 2 - (minY + maxY) / 2;
+
+  const finalPolygons = polygons.map((polygon) =>
+    polygon.map(([x, y]) => /** @type {Point} */ ([x + offsetX, y + offsetY])),
+  );
+
+  /** @type {MapCity[]} */
+  const cities = finalPolygons.map((polygon, index) => {
+    const area = Math.abs(polygonArea(polygon));
     const center = polygonInteriorPoint(polygon);
     const oldId = landIdList[index];
 
@@ -998,13 +1028,13 @@ export function generateMap(options = {}) {
     };
   });
 
-  const worldArea = width * height;
+  const worldArea = finalWidth * finalHeight;
   const continentSizes = [...continentSizesById.values()].sort((a, b) => b - a);
 
   return {
     seed,
-    width,
-    height,
+    width: finalWidth,
+    height: finalHeight,
     cities,
     meta: {
       cityCount: cities.length,
